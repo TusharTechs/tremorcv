@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset="utf-8"><title>TREMOR Target</title>
+<style>
+ body{margin:0;background:#111;color:#eee;font:14px system-ui;display:flex;
+      flex-direction:column;align-items:center;gap:12px;padding:16px}
+ canvas{background:#000;image-rendering:pixelated}
+ .row{display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:center}
+ label{display:flex;gap:6px;align-items:center}
+ input[type=number]{width:74px;background:#222;color:#eee;border:1px solid #444;padding:4px}
+ #hud{font:600 15px ui-monospace,monospace;color:#6f6}
+</style></head><body>
+<div class="row">
+  <label>Frequency <input id="f" type="number" value="7.3" step="0.1" min="0.1"> Hz</label>
+  <label>Amplitude <input id="a" type="number" value="4" step="0.5" min="0"> px</label>
+  <label>Static ref <input id="s" type="checkbox" checked></label>
+  <button id="go">Start</button>
+</div>
+<canvas id="c" width="900" height="420"></canvas>
+<div id="hud">ready</div>
+<p style="max-width:680px;color:#999;text-align:center">
+ Left panel oscillates horizontally at exactly the set frequency and amplitude.
+ Right panel never moves &mdash; that is the static reference the measurement uses to
+ cancel camera shake. Film the whole canvas. Screen brightness to 100%.
+</p>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const W=c.width,H=c.height,PW=430;
+function tex(w,h,seed){ // high-frequency noise: what phase correlation needs
+  const d=x.createImageData(w,h);let s=seed;
+  const r=()=>((s=(s*1664525+1013904223)>>>0)/4294967296);
+  for(let i=0;i<w*h;i++){const v=40+Math.floor(r()*200);
+    d.data[i*4]=d.data[i*4+1]=d.data[i*4+2]=v;d.data[i*4+3]=255;}
+  return d;
+}
+const oc1=new OffscreenCanvas(PW,H),g1=oc1.getContext('2d');g1.putImageData(tex(PW,H,7),0,0);
+const oc2=new OffscreenCanvas(PW,H),g2=oc2.getContext('2d');g2.putImageData(tex(PW,H,991),0,0);
+let on=false,t0=0;
+function frame(ts){
+  if(!on)return; if(!t0)t0=ts;
+  const t=(ts-t0)/1000, f=+document.getElementById('f').value,
+        a=+document.getElementById('a').value,
+        dx=a*Math.sin(2*Math.PI*f*t);
+  x.fillStyle='#000';x.fillRect(0,0,W,H);
+  x.drawImage(oc1,dx,0);                      // moving target (sub-pixel via canvas)
+  if(document.getElementById('s').checked) x.drawImage(oc2,W-PW,0);  // static reference
+  document.getElementById('hud').textContent=
+    `t=${t.toFixed(1)}s   f=${f} Hz   A=${a} px   dx=${dx>=0?'+':''}${dx.toFixed(3)} px`;
+  requestAnimationFrame(frame);
+}
+document.getElementById('go').onclick=e=>{
+  on=!on;t0=0;e.target.textContent=on?'Stop':'Start';
+  if(on)requestAnimationFrame(frame);
+};
+</script></body></html>
