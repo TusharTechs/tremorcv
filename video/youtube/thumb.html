@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8">
+<style>
+:root{--bg:#0c0f14;--ink:#e8eef7;--muted:#9fb0c4;--accent:#4dd4c4;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0}
+html,body{width:1280px;height:720px;overflow:hidden;background:var(--bg)}
+.t{position:absolute;inset:0;display:none}
+.t.on{display:block}
+.shot{position:absolute;inset:0;background-size:cover;background-position:center;
+  filter:grayscale(.15) contrast(1.1) brightness(1.18)}
+.scrim{position:absolute;inset:0}
+.a .scrim{background:linear-gradient(100deg,
+  rgba(8,11,15,.96) 0%,rgba(8,11,15,.90) 40%,rgba(8,11,15,.40) 66%,rgba(8,11,15,.10) 100%)}
+.b .scrim{background:linear-gradient(0deg,
+  rgba(8,11,15,.96) 0%,rgba(8,11,15,.55) 46%,rgba(8,11,15,.32) 100%)}
+.wrap{position:absolute;inset:0;padding:62px 70px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:16px}
+.brand img{width:52px;height:52px}
+.brand .wm{font:700 34px/1 var(--mono);letter-spacing:.17em;color:var(--accent)}
+.spacer{flex:1}
+h1{font:800 118px/.96 system-ui,-apple-system,sans-serif;letter-spacing:-.035em;
+  color:var(--ink)}
+h1 .ac{color:var(--accent)}
+.big{font:800 176px/.9 var(--mono);letter-spacing:-.045em;color:var(--accent)}
+.sub{font:600 40px/1.2 system-ui,-apple-system,sans-serif;color:var(--ink);
+  margin-top:20px;letter-spacing:-.01em}
+.chip{align-self:flex-start;display:inline-flex;align-items:center;gap:16px;margin-top:30px;
+  padding:16px 26px;border:3px solid var(--accent);border-radius:14px;
+  background:rgba(12,18,24,.88);font:700 30px/1 var(--mono);color:var(--accent);
+  letter-spacing:.02em}
+.kick{font:700 27px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:24px}
+</style>
+
+<!-- A -->
+<section class="t a on">
+  <div class="shot" style="background-image:url(fan_roi.png)"></div>
+  <div class="scrim"></div>
+  <div class="wrap">
+    <div class="brand"><img src="../favicon.svg"><span class="wm">TREMOR</span></div>
+    <div class="spacer"></div>
+    <h1>NO SENSOR.<br><span class="ac">JUST VIDEO.</span></h1>
+    <div class="chip">ceiling fan &middot; 2.406 Hz &middot; 144 RPM</div>
+  </div>
+</section>
+
+<!-- B -->
+<section class="t b">
+  <div class="shot" style="background-image:url(fan_roi.png)"></div>
+  <div class="scrim"></div>
+  <div class="wrap">
+    <div class="brand"><img src="../favicon.svg"><span class="wm">TREMOR</span></div>
+    <div class="spacer"></div>
+    <div class="kick">Diagnosed from a handheld phone clip</div>
+    <div class="big">144 RPM</div>
+    <div class="sub">no contact sensor, no tripod, 14 seconds of video</div>
+  </div>
+</section>
