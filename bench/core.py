@@ -34,16 +34,22 @@ def provenance():
 
     cool_markers = {
         "kleidicv": bool(re.search(r"kleidicv", bi, re.I)),
-        "cool_sdk_path": os.path.isdir("/opt/cool"),
-        "cool_in_cv2_path": "cool" in cv2.__file__.lower(),
+        "cool_sdk_installed": os.path.isdir("/opt/cool"),
         "carotene": bool(re.search(r"carotene", bi, re.I)),
+        # The one that actually matters: is the LOADED library COOL's?
+        "cv2_loaded_from_cool": "/opt/cool" in os.path.realpath(cv2.__file__),
     }
     machine = platform.machine()
     is_arm = machine in ("aarch64", "arm64")
     inst = _imdsv2("instance-type")
     # Graviton families: 6g/7g/8g, with optional d/n/en suffixes (m8g, c8gd, r7gn...)
     is_graviton = bool(re.match(r"^[a-z]+[678]gd?n?e?\.", inst or ""))
-    on_cool_ami = (os.path.isdir("/opt/cool") or "/opt/cool" in cv2.__file__)
+    # NOT isdir("/opt/cool"): that is true on a COOL AMI regardless of which
+    # library the interpreter actually imported. A stock venv on the same box
+    # reported cool_verified=True under the old check, because COOL's activate
+    # exports PYTHONPATH and venv's deactivate does not unset it -- so the
+    # "stock" baseline silently measured COOL and the comparison was void.
+    cv2_is_cool = "/opt/cool" in os.path.realpath(cv2.__file__)
 
     return {
         "opencv_version": cv2.__version__,
@@ -72,9 +78,14 @@ def provenance():
         # requires all three: Arm silicon, a Graviton EC2 instance, and the COOL
         # SDK actually present. The AMI id is recorded so a judge can cross-check
         # it against the AWS Marketplace listing.
-        "cool_verified": bool(is_arm and is_graviton and on_cool_ami),
+        "cool_verified": bool(is_arm and is_graviton and cv2_is_cool),
         "cool_verification_parts": {"is_arm": is_arm, "is_graviton": is_graviton,
-                                    "cool_sdk_present": on_cool_ami},
+                                    "cv2_loaded_from_cool": cv2_is_cool},
+        # The rules require OpenCV 5. Record it explicitly so a mismatch is
+        # visible in every result file rather than buried in a log.
+        "opencv_major": int(cv2.__version__.split(".")[0]),
+        "opencv5_requirement_met": cv2.__version__.startswith("5."),
+        "pythonpath": os.environ.get("PYTHONPATH", ""),
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 

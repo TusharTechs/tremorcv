@@ -147,6 +147,38 @@ unbalance (which need only 1x and 2x) still resolve in one 30 fps clip.
 | escalated | 27.5% | **18.8%** |
 | mean acquisitions | 1.79 | 1.86 |
 
+## Two failures from the first Graviton run
+
+Recorded because both produced confident, wrong output rather than an error.
+
+**The baseline measured COOL, not stock.** COOL's `activate` exports
+`PYTHONPATH=/opt/cool/python_3.12/site-packages/cv2/python-3.12`, and Python's
+`deactivate` restores `PATH` and `VIRTUAL_ENV` but **does not unset `PYTHONPATH`**.
+It therefore leaked into the baseline venv and took precedence over its own
+`site-packages`. Both legs loaded `cv2 4.14.0-pre` from `/opt/cool` and came out
+0.4% apart — a number that looks like a result and means nothing.
+
+The isolation assert *did* fire; the driver script ignored it, because the
+hand-written cloud-init re-implemented `run_all.sh` without `set -e`. Fixes:
+`setup_stock.sh` unsets `PYTHONPATH` and `LD_LIBRARY_PATH`; `run_all.sh` now gates
+the baseline leg as well as the COOL leg; and `make-userdata.sh` generates
+cloud-init that *calls* `run_all.sh` so there is one implementation of the sequence
+rather than two.
+
+**`cool_verified` was true for the stock run.** The check tested
+`isdir("/opt/cool")`, which is true on that machine no matter which library the
+interpreter imported. It now requires `"/opt/cool" in os.path.realpath(cv2.__file__)`
+— the loaded library, not the installed one. Provenance also records `PYTHONPATH`
+and `opencv_major`, so a leak or a version mismatch is visible in every result file
+instead of buried in a log.
+
+**Open question: COOL ships OpenCV 4.14.0-pre.** The AMI
+(`ami-01db31139bc5615d8`, Graviton4) reports `4.14.0-pre`, while the Marketplace
+listing describes "Version 3.1 (built on OpenCV 5.0)". The competition requires
+OpenCV 5 for the substantive analysis, so whether COOL can carry the core workload
+is unresolved and has been raised with the organisers. `run_all.sh` warns loudly and
+records the version rather than failing.
+
 ## Reproducing
 
 ```bash

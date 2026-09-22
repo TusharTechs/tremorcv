@@ -21,6 +21,11 @@ if not p["cool_verified"]:
     sys.exit("FATAL: cool_verified is False. Refusing to write results labelled "
              "'graviton-cool'. Fix the environment or relabel the run.")
 print("COOL provenance verified")
+if not p["opencv5_requirement_met"]:
+    print(f"WARNING: COOL ships OpenCV {p['opencv_version']}, not 5.x. The "
+          f"competition requires OpenCV 5 for the substantive analysis - see "
+          f"docs/THRESHOLDS.md. Continuing; the version is recorded in the "
+          f"result file.")
 PY
 
 python run_bench.py --label graviton-cool --instance "$INSTANCE"
@@ -30,6 +35,25 @@ echo; echo "=============== 2/3  stock baseline ==============="
 ./deploy/setup_stock.sh
 # shellcheck disable=SC1090
 source "$HOME/stock-venv/bin/activate"
+
+# Gate the BASELINE as well. The first run produced a void comparison because
+# only the COOL leg was checked: COOL's PYTHONPATH leaked through `deactivate`
+# and the "stock" leg measured COOL, reporting cool_verified=True under the old
+# isdir() check. Both legs must now prove which library they loaded.
+python - <<'PY'
+import sys; sys.path.insert(0, ".")
+from bench.core import provenance
+p = provenance()
+print("baseline provenance:", p["cool_verification_parts"],
+      "opencv:", p["opencv_version"])
+if p["cool_verification_parts"]["cv2_loaded_from_cool"]:
+    sys.exit("FATAL: baseline loaded the COOL build. Refusing to write results "
+             "labelled 'graviton-stock' - the comparison would be COOL vs COOL.")
+if not p["opencv5_requirement_met"]:
+    sys.exit(f"FATAL: baseline is OpenCV {p['opencv_version']}, expected 5.x")
+print("baseline verified as stock OpenCV 5")
+PY
+
 python run_bench.py --label graviton-stock --instance "$INSTANCE"
 
 echo; echo "=============== 3/3  report ==============="
