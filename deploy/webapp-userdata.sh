@@ -29,13 +29,15 @@ Environment=TREMOR_MAX_UPLOAD_MB=100
 ExecStart=/opt/tremor/.venv/bin/uvicorn webapp.server:app --host 0.0.0.0 --port 80 --workers 1
 Restart=always
 RestartSec=5
-# a public endpoint running CV on uploads: bound the blast radius
-MemoryMax=1600M
+# Bound the blast radius of a public endpoint that runs CV on uploads -- but do NOT
+# use ProtectSystem=strict here: it makes /opt/tremor read-only, and Python needs to
+# write __pycache__ and matplotlib/numpy need a writable config dir. That silently
+# prevented the service from serving at all.
+MemoryMax=1700M
 CPUQuota=180%
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ReadWritePaths=/opt/tremor/results /tmp
+Environment=MPLCONFIGDIR=/tmp/mpl
+Environment=PYTHONDONTWRITEBYTECODE=1
 
 [Install]
 WantedBy=multi-user.target
@@ -44,7 +46,25 @@ SVC
 mkdir -p /opt/tremor/results
 systemctl daemon-reload
 systemctl enable --now tremor.service
-sleep 8
-systemctl is-active tremor.service
-curl -s -m 10 http://127.0.0.1/api/health && echo "  <- health OK"
-echo "=== WEBAPP READY ==="
+
+# Wait for it to actually serve, then prove it -- the previous deploy reported
+# READY while the unit was still "activating" and never checked again.
+for i in $(seq 1 30); do
+  if curl -s -m 5 http://127.0.0.1/api/health | grep -q '"ok":true'; then
+    echo "=== HEALTH OK after ${i}0s ==="
+    curl -s -m 5 http://127.0.0.1/api/health
+    echo
+    echo "=== WEBAPP READY ==="
+    exit 0
+  fi
+  sleep 10
+done
+
+echo "=== WEBAPP FAILED TO SERVE - diagnostics ==="
+systemctl status tremor.service --no-pager -l | head -20
+echo "--- journal ---"
+journalctl -u tremor.service --no-pager -n 40
+echo "--- listening sockets ---"
+ss -lntp 2>/dev/null | head
+echo "--- can python import the app? ---"
+cd /opt/tremor && ./.venv/bin/python -c "import webapp.server; print('import OK')" 2>&1 | tail -20
