@@ -6,3 +6,7 @@ __pycache__/
 out/*.png
 !out/validation.png
 .DS_Store
+
+# video intermediates: regenerate with video/record_demo.py
+video/raw/*.webm
+video/work/
