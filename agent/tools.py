@@ -159,9 +159,27 @@ def estimate_shaft(meas: Measurement, fmin=0.5):
 
     best, best_score = None, 0.0
     for f0 in sorted(cands):
-        amps = {k: meas.amp_at(f0 * k) for k, _ in HARMONIC_WEIGHTS}
+        # A harmonic slot must never be wide enough to swallow its neighbour.
+        # amp_at's default tolerance is absolute, max(3*bin, 0.25) Hz, which at a
+        # low candidate fundamental is a large fraction of the harmonic SPACING
+        # itself -- the slots blur into each other. On a real ceiling fan clip
+        # (bin 0.073 Hz) the candidate f0 = 0.729 Hz put its 3x slot at 2.187 Hz
+        # with a 0.25 Hz half-width, which reached the genuine 2.406 Hz shaft peak
+        # and scored that peak as evidence for 0.729. Capping the slot at a
+        # quarter of the spacing keeps slots disjoint; above f0 = 1 Hz this is
+        # the previous behaviour unchanged.
+        tol = min(max(3 * meas.bin_hz, 0.25), 0.25 * f0)
+        amps = {k: meas.amp_at(f0 * k, tol) for k, _ in HARMONIC_WEIGHTS}
         peak = max(amps.values())
         if peak <= 0 or amps[1] < FUNDAMENTAL_MIN_SHARE * peak:
+            continue
+        # The comb must also be the right SHAPE. Every standard signature puts
+        # the most energy at 1x (unbalance, looseness) or 2x (misalignment);
+        # none is dominated by 3x with 1x and 2x both weak. A candidate like
+        # that is not a shaft rate, it is f_real/3 borrowing a real peak into
+        # its third slot -- which is exactly how a real ceiling fan at 2.406 Hz
+        # was being reported as 0.802 Hz.
+        if max(amps, key=amps.get) not in (1, 2):
             continue
         score = sum(w * amps[k] for k, w in HARMONIC_WEIGHTS)
         if score > best_score:
