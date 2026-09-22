@@ -114,7 +114,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python analyze_video.py <clip.mov>  # measure your own footage
 ```
 
-**Web endpoint** — no build step, no CDN, runs with uvicorn and nothing else:
+**Web endpoint** — live at **<http://50.19.247.214>**. No build step, no CDN, so it
+runs locally with uvicorn and nothing else:
 
 ```bash
 .venv/bin/uvicorn webapp.server:app --port 8077

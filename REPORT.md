@@ -6,9 +6,10 @@ measure next.**
 OpenCV AI Competition 2026 · technical report
 
 > **Status note.** Every number in this report is measured and reproducible from the
-> commands given in §10. Sections marked **[PENDING]** describe work that is
-> implemented and ready to run but whose results are not yet collected; they contain
-> no invented figures.
+> commands given in §10. Nothing here is projected or estimated. The COOL/Graviton
+> figures in §7.3 come from a run whose provenance is recorded in `results/`, and the
+> web endpoint in §7.4 is live. What is *not* yet done — validation against a real
+> machine rather than a controlled target — is stated in §8 rather than glossed.
 
 ---
 
@@ -428,10 +429,37 @@ Reproduce with `./deploy/run_all.sh c8g.2xlarge`; raw result JSON is in `results
 
 ### 7.4 Web endpoint
 
-**[PENDING deployment]** — `webapp/` is built and verified in a browser. FastAPI with a
-single page, **no build step and no CDN dependency**, so it runs with uvicorn and
-nothing else. Two modes: the agent loop streamed step by step over SSE, and measurement
-of an uploaded clip with the automatically-chosen regions drawn on a preview frame.
+**Live at <http://50.19.247.214>** — deployed 2026-09-22 on an EC2 `t4g.small`
+(Graviton2, us-east-1) behind a static Elastic IP, open to `0.0.0.0/0`. Running as a
+systemd unit with `MemoryMax`, `CPUQuota` and `NoNewPrivileges` set, because a public
+endpoint that runs computer vision on uploaded video needs its blast radius bounded.
+
+FastAPI serving a single page with **no build step and no CDN dependency** — charts are
+drawn on canvas directly, so a judge can run the identical app locally with
+`uvicorn webapp.server:app` and nothing else. Two modes:
+
+- **Simulated** streams the agent loop over SSE, so each decision appears as it is made
+  with the measurement that drove it beside it. A static results page would show the
+  vision *result*; streaming shows the vision result *changing what happens next*.
+- **Upload clip** measures real footage, locates the vibrating region and a rigid
+  reference automatically, and draws the chosen regions on a preview frame so the
+  operator can see what was measured rather than having to trust it.
+
+`/api/health` reports the OpenCV version and live COOL provenance. It correctly reads
+`cool_verified: false` here: this host runs stock OpenCV 5.0.0, and the COOL-verified
+figures in §7.3 came from the `c8g.2xlarge` benchmark. The provenance check earning its
+keep by *declining* to claim COOL is the same property that made §7.3 trustworthy.
+
+Deployment is reproducible from `deploy/webapp-userdata.sh`, and
+`tests/test_deploy_scripts.sh` guards the two traps that cost a deploy each: the
+service must install `opencv-python-headless` (the full wheel links `libGL`, absent on
+servers, which crash-looped the unit 50 times), and it must verify `import cv2`
+succeeds before handing anything to systemd.
+
+**Known limitation:** the endpoint is HTTP, not HTTPS. There is no login and no
+personal data, but browsers will flag it as not secure and some corporate proxies
+block bare IP addresses. A domain name with automatic certificates would resolve both
+and is the remaining polish item.
 
 ---
 
@@ -498,9 +526,12 @@ to machinery rather than human movement.
 Nothing is shared with third parties. The measurement path runs no third-party model
 and makes no external network calls.
 
-**No misrepresentation.** Pending work is marked **[PENDING]** and contains no invented
-figures; cost claims are withheld until their inputs are verified; negative results and
-the limits of our own evaluation are reported in §8 rather than omitted.
+**No misrepresentation.** Every figure here is measured, not projected. Cost claims
+were withheld until the EC2 rate was verified against the AWS Pricing API. Negative
+results are reported alongside favourable ones — four of the eight benchmarked
+operations show no gain from COOL, and one is slower. The limits of our own evaluation,
+including that the agent is scored against a simulator we wrote, are in §8 rather than
+omitted.
 
 ---
 
