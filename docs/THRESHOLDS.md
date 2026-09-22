@@ -11,7 +11,9 @@ what was run and what it showed, so each one can be re-derived or challenged.
 | `STABILIZE_WHEN` | 0.5 | Stabilisation is not free: subtracting a near-zero reference adds √2× noise. Measured in `run_gate.py` §C/§D — above ~0.5 px signal the unstabilised SNR was *higher* (36.8 vs 20.9); between 0.2 and 0.5 px stabilisation was essential. |
 | `REJECT_FRAC_MAX` | 0.15 | See below. |
 | `HEALTHY_TOTAL_PX` | 0.42 | A healthy machine and an unbalanced one have near-identical harmonic ratios (0.87/0.09/0.04 vs 0.83/0.12/0.04) — only amplitude separates them. Real analysts use ISO 10816 velocity bands for the same reason. |
-| `CONFIDENCE_TO_REPORT` | 0.55 | Chosen so the agent escalates rather than asserting a fault it cannot support. At n=30 it answered 79% correctly and escalated 20% instead of guessing. |
+| `HARMONIC_MIN_SNR` | 3.0 | A harmonic below 3× the spectral noise floor is noise, not a measurement. See "Gating harmonics" below. |
+| `FUNDAMENTAL_MIN_SHARE` | 0.15 | A real fundamental carries non-trivial energy at 1×. Stops the harmonic-comb estimator selecting f_true/2. |
+| `CONFIDENCE_TO_REPORT` | 0.55 | Chosen so the agent escalates rather than asserting a fault it cannot support. |
 
 ## Camera shake is resolution-dependent
 
@@ -44,6 +46,62 @@ Effect at 240 fps / 4 s: SNR **8.4 → 39.2**.
 (40% of frames rejected). The detector catches it and the agent refuses the
 measurement rather than reporting a wrong answer, but the underlying cause is
 uncharacterised. Acquisitions at 240 fps are therefore capped at 4 s.
+
+## Shaft estimation: harmonic comb, not "lowest strong peak"
+
+The obvious heuristic — take the lowest peak above the SNR threshold as the running
+speed — is wrong, and was a major error source. For **misalignment** the 2×
+component dominates and 1× can fall below the SNR floor, so the heuristic returns
+*twice* the true shaft rate, reads 2× as 1×, and inverts the diagnosis to unbalance.
+Measured directly at a true 4.30 Hz:
+
+| Fault | true | harmonic comb | lowest strong peak |
+|---|---|---|---|
+| healthy | 4.30 | **4.30** | 0.50 |
+| unbalance | 4.30 | **4.30** | 0.50 |
+| misalignment | 4.30 | **4.30** | 0.50 |
+| mechanical_looseness | 4.30 | **4.30** | 4.30 |
+
+`estimate_shaft` instead scores each candidate fundamental by how much energy lands
+on its harmonic comb (weights 1.0 / 0.9 / 0.6 at 1×/2×/3×). The
+`FUNDAMENTAL_MIN_SHARE` guard is what stops `f_true / 2` winning: that candidate
+explains the true 1× as its own 2×, but has nothing at its own fundamental.
+
+## Gating harmonics against the noise floor
+
+An n=80 confusion matrix localised the remaining error almost entirely to one class:
+
+| Truth | correct when answered |
+|---|---|
+| mechanical_looseness | 16/16 |
+| misalignment | 19/20 |
+| unbalance | 9/12 |
+| **healthy** | **3/12** |
+
+`healthy` produced 9 of 13 total errors, split between "misalignment" and
+"unbalance". The cause: on a quiet machine the 2× and 3× components are genuinely
+around 0.02 px — far below the measurement noise floor — so whatever the spectrum
+shows at those frequencies is noise. Feeding it into a ratio test **invents a fault**.
+
+`diagnose` now gates each harmonic at `HARMONIC_MIN_SNR × noise_floor` *before*
+taking ratios, and distinguishes three cases that were previously conflated:
+
+- **all harmonics below the floor** → `below_measurement_floor`, confidence 0. The
+  machine is quiet but no signature is resolvable; the agent escalates rather than
+  reporting "healthy" it cannot support.
+- **only 1× above the floor** → `healthy`. This is the correct physical reading, not
+  a fallback.
+- **a harmonic above Nyquist** → recorded as *unobservable*, distinct from
+  "measured ≈ 0", and confidence is multiplied by 0.6. Looseness needs 3×; if 3×
+  sits above Nyquist it cannot be ruled out, and the agent should not pretend it can.
+
+## Trend outranks absolute amplitude
+
+`compare_baseline` is wired into the decision, not just reported. A machine whose
+absolute level reads healthy but which is >50% above its own baseline is returned as
+`healthy_but_degrading`. Analysts trend each asset against itself rather than a
+global threshold, because a permanently noisy machine is less interesting than a
+quiet one that just got worse.
 
 ## Reproducing
 

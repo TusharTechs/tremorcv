@@ -35,11 +35,26 @@ class Measurement:
     signal_rms_px: float = 0.0
     nyquist_hz: float = 0.0
     reject_frac: float = 0.0
+    noise_floor_px: float = 0.0
+
+    # Full spectrum, kept for harmonic queries at arbitrary frequencies. Excluded
+    # from dict() so large arrays never cross the MCP boundary.
+    _freqs: object = None
+    _amps: object = None
 
     def dict(self):
-        d = asdict(self)
+        d = {k: v for k, v in asdict(self).items() if not k.startswith("_")}
         d["peaks"] = [asdict(p) if not isinstance(p, dict) else p for p in self.peaks]
         return d
+
+    def amp_at(self, hz, tol_hz=None):
+        """Spectral amplitude near `hz`. Queries the SPECTRUM, not the peak list --
+        a harmonic can carry real energy while ranking outside the top peaks."""
+        if self._freqs is None or hz <= 0 or hz > self.nyquist_hz:
+            return 0.0
+        tol = tol_hz or max(3 * self.bin_hz, 0.25)
+        m = np.abs(self._freqs - hz) <= tol
+        return float(self._amps[m].max()) if m.any() else 0.0
 
 
 def assess_surface(frames, roi):
@@ -66,6 +81,7 @@ def measure(frames, fps, target_roi, static_roi, n_peaks=4, fmin=0.5):
     f, A = spectrum(sig, fps)
     band = f >= fmin
     fb, Ab = f[band], A[band]
+    floor_global = float(np.median(Ab)) if Ab.size else 0.0
     order = np.argsort(Ab)[::-1]
 
     picked, peaks = [], []
@@ -83,7 +99,8 @@ def measure(frames, fps, target_roi, static_roi, n_peaks=4, fmin=0.5):
     return Measurement(peaks=peaks, fps=float(fps), duration_s=len(frames) / fps,
                        bin_hz=float(f[1]), stabilized=stabilized, cam_rms_px=cam_rms,
                        signal_rms_px=float(np.std(sig)), nyquist_hz=fps / 2.0,
-                       reject_frac=reject_frac)
+                       reject_frac=reject_frac, noise_floor_px=floor_global,
+                       _freqs=f, _amps=A)
 
 
 def assess_quality(meas: Measurement, surface: dict):
@@ -106,7 +123,46 @@ def assess_quality(meas: Measurement, surface: dict):
             "top_snr": (top.snr if top else 0.0)}
 
 
-HEALTHY_TOTAL_PX = 0.42   # below this, 1x-dominance is residual, not a fault
+HARMONIC_WEIGHTS = ((1, 1.0), (2, 0.9), (3, 0.6))
+FUNDAMENTAL_MIN_SHARE = 0.15   # a real fundamental carries non-trivial energy itself
+
+
+def estimate_shaft(meas: Measurement, fmin=0.5):
+    """Harmonic-comb scoring over candidate fundamentals.
+
+    Taking "the lowest strong peak" is wrong and was the dominant error source:
+    for misalignment the 2x component dominates and 1x can sit below the SNR
+    floor, so that heuristic returns twice the true shaft rate -- which then
+    reads 2x as 1x and inverts the diagnosis to unbalance.
+
+    Instead, score each candidate f0 by how much energy lands on its harmonic
+    comb. The FUNDAMENTAL_MIN_SHARE guard is what stops f_true/2 winning: that
+    candidate explains the true 1x as its own 2x, but has nothing at its own
+    fundamental.
+    """
+    if not meas.peaks:
+        return None
+    cands = set()
+    for p in meas.peaks:
+        for div in (1, 2, 3):
+            f0 = p.freq_hz / div
+            if f0 >= fmin:
+                cands.add(round(f0, 3))
+
+    best, best_score = None, 0.0
+    for f0 in sorted(cands):
+        amps = {k: meas.amp_at(f0 * k) for k, _ in HARMONIC_WEIGHTS}
+        peak = max(amps.values())
+        if peak <= 0 or amps[1] < FUNDAMENTAL_MIN_SHARE * peak:
+            continue
+        score = sum(w * amps[k] for k, w in HARMONIC_WEIGHTS)
+        if score > best_score:
+            best, best_score = f0, score
+    return best
+
+
+HEALTHY_TOTAL_PX = 0.42    # below this, 1x-dominance is residual, not a fault
+HARMONIC_MIN_SNR = 3.0     # a harmonic below 3x the noise floor is not measured, it is noise
 
 
 def diagnose(meas: Measurement, shaft_hz: float, tol_hz=None,
@@ -118,17 +174,37 @@ def diagnose(meas: Measurement, shaft_hz: float, tol_hz=None,
     the magnitude distinguishes them. Real analysts use ISO 10816 velocity bands
     for the same reason.
     """
-    tol = tol_hz or max(3 * meas.bin_hz, 0.25)
-    def amp_at(mult):
-        want = shaft_hz * mult
-        c = [p for p in meas.peaks if abs(p.freq_hz - want) <= tol]
-        return max((p.amp_px for p in c), default=0.0)
+    raw = [meas.amp_at(shaft_hz * k, tol_hz) for k in (1, 2, 3)]
+    floor = meas.noise_floor_px
 
-    a1, a2, a3 = amp_at(1), amp_at(2), amp_at(3)
+    # Gate each harmonic against the noise floor BEFORE taking ratios. On a quiet
+    # machine 2x and 3x are genuinely ~0.02 px, far below the floor, so whatever
+    # the spectrum shows there is noise. Feeding that into a ratio test invents a
+    # fault: this was the single largest error source (healthy was 25% correct,
+    # with 8/12 misread as misalignment or unbalance).
+    gated = [a if a > HARMONIC_MIN_SNR * floor else 0.0 for a in raw]
+    # Harmonics above Nyquist were never observable -- distinct from "measured ~0".
+    unobservable = [k for k in (1, 2, 3) if shaft_hz * k > meas.nyquist_hz]
+    a1, a2, a3 = gated
     tot = a1 + a2 + a3
-    if tot <= 0:
-        return {"fault": "indeterminate", "confidence": 0.0,
-                "harmonics": {"1x": a1, "2x": a2, "3x": a3}}
+
+    if a1 <= 0 and tot <= 0:
+        return {"fault": "below_measurement_floor", "confidence": 0.0,
+                "harmonics": {"1x": raw[0], "2x": raw[1], "3x": raw[2]},
+                "noise_floor_px": round(floor, 4),
+                "note": "all harmonics below the noise floor; machine is quiet but "
+                        "no fault signature is resolvable at this SNR"}
+
+    # 1x present, higher harmonics genuinely unresolvable -> that IS a quiet machine.
+    if a1 > 0 and a2 <= 0 and a3 <= 0:
+        return {"fault": "healthy", "confidence": 0.80,
+                "harmonics": {"1x": round(a1, 4), "2x": 0.0, "3x": 0.0},
+                "ratios": {"1x": 1.0, "2x": 0.0, "3x": 0.0},
+                "total_px": round(tot, 4), "noise_floor_px": round(floor, 4),
+                "note": "only 1x rises above the noise floor"}
+
+    if unobservable:
+        pass  # confidence is reduced below
 
     r1, r2, r3 = a1 / tot, a2 / tot, a3 / tot
     if tot < healthy_below and r1 > 0.6:
@@ -145,10 +221,14 @@ def diagnose(meas: Measurement, shaft_hz: float, tol_hz=None,
         fault, conf = "mechanical_looseness", min(1.0, (r3 / 0.20) * 0.6)
     else:
         fault, conf = "indeterminate", 0.3
+    if unobservable:
+        # e.g. looseness needs 3x; if 3x sits above Nyquist we cannot rule it out.
+        conf *= 0.6
     return {"fault": fault, "confidence": round(float(conf), 3),
             "harmonics": {"1x": round(a1, 4), "2x": round(a2, 4), "3x": round(a3, 4)},
             "ratios": {"1x": round(r1, 3), "2x": round(r2, 3), "3x": round(r3, 3)},
-            "total_px": round(tot, 4)}
+            "total_px": round(tot, 4), "noise_floor_px": round(floor, 4),
+            "unobservable_harmonics": unobservable}
 
 
 def compare_baseline(baseline: dict, meas: Measurement, shaft_hz: float):

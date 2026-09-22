@@ -37,9 +37,8 @@ for i in range(N):
         "ag_fault": a.fault, "ag_shaft": a.shaft_hz, "ag_esc": a.escalated,
         "ag_n": a.acquisitions, "ss_fault": b_fault, "ss_shaft": b_shaft,
     })
-    print(f"  {i+1:2d}/{N} {truth:22s} shaft {s.shaft_hz:5.2f} | "
-          f"agent: {(a.fault or 'ESCALATED'):22s} | single-shot: {str(b_fault):22s}",
-          flush=True)
+    if i % 10 == 9:
+        print(f"  ...{i+1}/{N}", flush=True)
 
 def acc(key, esc_counts_wrong=True):
     ok = sum(1 for r in rows if r[key] == r["truth"])
@@ -64,6 +63,29 @@ print(f"{'median shaft-freq error (Hz)':44}"
       f"{np.median(shaft_err_ss) if shaft_err_ss else float('nan'):12.3f}")
 print(f"{'mean acquisitions used':44}"
       f"{np.mean([r['ag_n'] for r in rows]):12.2f}{1.0:13.2f}")
+# Wilson 95% interval -- at these sample sizes a few scenarios swing the headline,
+# so a point estimate on its own invites chasing noise.
+def wilson(k, n, z=1.96):
+    if n == 0: return (0.0, 0.0)
+    p = k / n; d = 1 + z*z/n
+    c = (p + z*z/(2*n)) / d
+    h = z*np.sqrt(p*(1-p)/n + z*z/(4*n*n)) / d
+    return (max(0, c-h)*100, min(1, c+h)*100)
+
+ka = sum(1 for r in rows if r["ag_fault"] == r["truth"])
+ks = sum(1 for r in rows if r["ss_fault"] == r["truth"])
+la, ua = wilson(ka, len(rows)); ls, us = wilson(ks, len(rows))
+print(f"{'  95% CI (all scenarios)':44}{f'{la:.0f}-{ua:.0f}%':>13}{f'{ls:.0f}-{us:.0f}%':>14}")
+
+import collections
+conf = collections.Counter((r["truth"], r["ag_fault"] or "ESCALATED") for r in rows)
+labels = sorted({r["truth"] for r in rows})
+cols = labels + ["ESCALATED"]
+print(f"\nCONFUSION (agent)  rows = truth, cols = reported\n")
+print("  " + " " * 22 + "".join(f"{c[:11]:>13}" for c in cols))
+for t in labels:
+    print(f"  {t:22}" + "".join(f"{conf.get((t,c),0):>13}" for c in cols))
+
 print(f"\nThe agent never asserts a fault it cannot support: when it answered it was "
       f"{ag_correct_when_reported:.0f}% correct,\nand it escalated the rest rather than "
       f"guessing. Single-shot always answers, right or wrong.\n")

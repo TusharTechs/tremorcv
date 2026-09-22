@@ -39,6 +39,8 @@ class Outcome:
     reason: str = ""
     steps: list = field(default_factory=list)
     wall_s: float = 0.0
+    diagnosis: dict = None
+    trend: dict = None
 
     def json(self):
         d = asdict(self)
@@ -55,9 +57,8 @@ def _better_aim(current, tried):
 
 
 def _estimate_shaft(meas):
-    """Lowest strong peak is the running speed; harmonics sit above it."""
-    strong = [p for p in meas.peaks if p.snr >= tools.SNR_TRUST]
-    return min((p.freq_hz for p in strong), default=None)
+    """Harmonic-comb estimate; see tools.estimate_shaft for why not 'lowest peak'."""
+    return tools.estimate_shaft(meas)
 
 
 def run(env: MachineEnv, first: Acquisition = None, baseline: dict = None,
@@ -118,12 +119,26 @@ def run(env: MachineEnv, first: Acquisition = None, baseline: dict = None,
             else:
                 dx = tools.diagnose(meas, shaft)
                 trend = tools.compare_baseline(baseline or {}, meas, shaft)
+
+                # Trend outranks absolute amplitude. A quiet machine that has got
+                # 60% worse since its own baseline matters more than a noisy one
+                # that has been stable for years -- which is why analysts trend
+                # each asset against itself rather than a global threshold.
+                if dx["fault"] == "healthy" and trend.get("trending_worse"):
+                    dx = {**dx, "fault": "healthy_but_degrading",
+                          "confidence": max(dx["confidence"], 0.60),
+                          "trend_note": f"amplitude up {trend['max_increase_pct']:.0f}% "
+                                        f"vs baseline despite low absolute level"}
+
                 if dx["confidence"] >= CONFIDENCE_TO_REPORT:
                     decision = "report"
                     why = (f"shaft {shaft:.2f} Hz; harmonics 1x/2x/3x = "
                            f"{dx['ratios']['1x']:.2f}/{dx['ratios']['2x']:.2f}/"
                            f"{dx['ratios']['3x']:.2f}, total {dx['total_px']:.3f} px "
-                           f"-> {dx['fault']} (confidence {dx['confidence']:.2f}).")
+                           f"-> {dx['fault']} (confidence {dx['confidence']:.2f})."
+                           + (f" {dx['trend_note']}." if "trend_note" in dx else "")
+                           + ("" if trend.get("has_baseline")
+                              else " No baseline for this asset; stored for trending."))
                 else:
                     decision = "escalate"
                     why = (f"diagnosis '{dx['fault']}' confidence {dx['confidence']:.2f} "
@@ -140,7 +155,8 @@ def run(env: MachineEnv, first: Acquisition = None, baseline: dict = None,
 
         if decision == "report":
             return Outcome(True, False, dx["fault"], dx["confidence"], shaft,
-                           env.n_acquisitions, why, steps, time.perf_counter() - t0)
+                           env.n_acquisitions, why, steps, time.perf_counter() - t0,
+                           diagnosis=dx, trend=trend)
         if decision == "escalate":
             return Outcome(False, True, None, 0.0, None, env.n_acquisitions, why, steps,
                            time.perf_counter() - t0)
