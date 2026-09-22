@@ -29,19 +29,37 @@ docs/MCP.md           MCP server and the two-orchestrator design
 - Known limit: smooth/glossy surfaces fail (SNR 1.6 at 15% surface contrast).
 - Known limit: 30 fps caps measurement at 15 Hz (900 RPM); 240 fps -> 120 Hz.
 
-Agent task effectiveness (n=80), against a single-shot ablation that takes one
-acquisition and diagnoses whatever comes out:
+Agent task effectiveness (n=80): **71.2%** of scenarios diagnosed correctly,
+**87.7%** correct on the ones it committed to, 18.8% escalated to a human rather
+than guessed. Median shaft-frequency error 0.000 Hz.
 
-| | agent | single-shot |
-|---|---|---|
-| fault correct (all scenarios) | **63.7%** | 21.2% |
-| fault correct **when it answered** | **86.4%** | 21.2% |
-| escalated instead of guessing | 26.2% | 0.0% |
-| median shaft-frequency error | **0.000 Hz** | 3.200 Hz |
-| 95% CI (all scenarios) | 53-73% | 14-31% |
+### What the agentic loop is actually worth
 
-Per class, correct when answered: looseness 16/16, misalignment 17/18,
-healthy 10/13, unbalance 8/12.
+A single agent-vs-baseline ratio is not a defensible claim: across three of our own
+changes the single-shot baseline moved 21% -> 70% -> 27.5% while the agent stayed
+flat at 86-88%. The ablation was largely measuring how hard the starting conditions
+had been made -- a knob the author controls. So we sweep it instead (`sensitivity.py`,
+n=24 per point, identical machines at every point, only the surface the operator
+first aims at varies):
+
+| initial surface | contrast | agent (all) | agent (when it answered) | single-shot | escalated | acquisitions |
+|---|---|---|---|---|---|---|
+| mirror housing | 0.010 | **79.2%** | 95.0% | **8.3%** | 16.7% | 2.21 |
+| glossy paint | 0.040 | **79.2%** | 95.0% | 75.0% | 16.7% | 1.04 |
+| worn paint | 0.150 | **79.2%** | 90.5% | 75.0% | 12.5% | 1.04 |
+| printed label | 0.550 | **79.2%** | 86.4% | 70.8% | 8.3% | 1.12 |
+| cast grille | 1.000 | **79.2%** | 86.4% | 70.8% | 8.3% | 1.12 |
+
+**The agent's accuracy is flat at 79.2% regardless of how badly the operator aims.**
+Single-shot collapses from 75% to 8.3% once the surface drops below the correlation
+floor. The agent pays for that robustness only when it needs to -- 2.21 acquisitions
+on an unusable surface, 1.04 on a workable one.
+
+The honest reading: the loop buys **invariance to a bad first acquisition**, not raw
+accuracy. Where the operator already aims well and holds steady it converges toward
+single-shot and costs an extra fraction of an acquisition. Its value is bounded by
+how often first acquisitions are inadequate, which is an operational question about
+deployment, not a property of the algorithm.
 
 ## Setup
 

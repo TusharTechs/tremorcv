@@ -14,6 +14,9 @@ from agent.env import Acquisition, AIM_POINTS, MachineEnv, TARGET_ROI, STATIC_RO
 
 MAX_ACQUISITIONS = 4            # hard budget: bounded autonomy
 CONFIDENCE_TO_REPORT = 0.55     # below this the agent escalates instead of asserting
+FAST_FPS = 240                  # lifts Nyquist from 15 Hz to 120 Hz
+FAST_SECONDS = 5.0              # was capped at 4 s only to dodge the phaseCorrelate
+                                # mutation bug; 240 fps / 10 s now measures cleanly
 
 
 @dataclass
@@ -108,14 +111,16 @@ def run(env: MachineEnv, first: Acquisition = None, baseline: dict = None,
             shaft = _estimate_shaft(meas)
             if shaft is None:
                 decision, why = "escalate", "no peak above SNR threshold."
-            elif 2 * shaft > meas.nyquist_hz and req.fps < 240:
-                # Derived from the agent's OWN shaft estimate: if 2x cannot fit under
-                # Nyquist, the harmonics needed for diagnosis are folding back into
-                # the spectrum and any classification would be built on an artefact.
-                decision, nxt = "re_acquire", Acquisition(req.aim, 240, 4.0, True)
+            elif 2 * shaft > meas.nyquist_hz and req.fps < FAST_FPS:
+                # Derived from the agent's OWN shaft estimate: if even 2x cannot fit
+                # under Nyquist, no classification is possible -- the harmonics are
+                # folding back and anything reported would be an artefact.
+                decision, nxt = "re_acquire", Acquisition(req.aim, FAST_FPS,
+                                                          FAST_SECONDS, req.braced)
                 why = (f"shaft estimated at {shaft:.2f} Hz, so 2x = {2*shaft:.2f} Hz "
                        f"exceeds Nyquist ({meas.nyquist_hz:.1f} Hz). Harmonics are "
-                       f"aliasing; 30 fps cannot support a diagnosis. Requesting 240 fps.")
+                       f"aliasing; {req.fps} fps cannot support any diagnosis. "
+                       f"Requesting {FAST_FPS} fps.")
             else:
                 dx = tools.diagnose(meas, shaft)
                 trend = tools.compare_baseline(baseline or {}, meas, shaft)
@@ -130,6 +135,7 @@ def run(env: MachineEnv, first: Acquisition = None, baseline: dict = None,
                           "trend_note": f"amplitude up {trend['max_increase_pct']:.0f}% "
                                         f"vs baseline despite low absolute level"}
 
+                missing = dx.get("unobservable_harmonics") or []
                 if dx["confidence"] >= CONFIDENCE_TO_REPORT:
                     decision = "report"
                     why = (f"shaft {shaft:.2f} Hz; harmonics 1x/2x/3x = "
@@ -139,10 +145,25 @@ def run(env: MachineEnv, first: Acquisition = None, baseline: dict = None,
                            + (f" {dx['trend_note']}." if "trend_note" in dx else "")
                            + ("" if trend.get("has_baseline")
                               else " No baseline for this asset; stored for trending."))
+                elif missing and req.fps < FAST_FPS:
+                    # Confidence is low SPECIFICALLY because a harmonic the
+                    # diagnosis needs sits above Nyquist -- looseness is only
+                    # separable via 3x. Go and get a clip that can resolve it
+                    # instead of declining. This is the vision result choosing the
+                    # next acquisition, not a fixed retry policy.
+                    need = ", ".join(f"{k}x = {k*shaft:.1f} Hz" for k in missing)
+                    decision, nxt = "re_acquire", Acquisition(req.aim, FAST_FPS,
+                                                              FAST_SECONDS, req.braced)
+                    why = (f"'{dx['fault']}' at confidence {dx['confidence']:.2f} "
+                           f"< {CONFIDENCE_TO_REPORT}, limited by {need} above Nyquist "
+                           f"({meas.nyquist_hz:.1f} Hz). Re-acquiring at {FAST_FPS} fps "
+                           f"to resolve the missing harmonic rather than declining.")
                 else:
                     decision = "escalate"
                     why = (f"diagnosis '{dx['fault']}' confidence {dx['confidence']:.2f} "
-                           f"< {CONFIDENCE_TO_REPORT}; not asserting a fault.")
+                           f"< {CONFIDENCE_TO_REPORT}; not asserting a fault."
+                           + (f" {', '.join(str(k)+'x' for k in missing)} above Nyquist "
+                              f"even at {req.fps} fps." if missing else ""))
 
         steps.append(Step(n, asdict(req), surface, meas.dict(), qual, decision, why,
                           asdict(nxt) if nxt else None))

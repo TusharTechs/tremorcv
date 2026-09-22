@@ -1,0 +1,10 @@
+# For the COOL AMI ONLY.
+#
+# Deliberately does NOT list opencv-python. The COOL AMI ships its own OpenCV 5.0
+# build with Arm KleidiCV optimisations at /opt/cool. Running
+# `pip install -r requirements.txt` inside COOL's venv would install a stock wheel
+# that shadows it, and every benchmark number would then be measuring stock OpenCV
+# while claiming to measure COOL. deploy/setup_cool.sh asserts '/opt/cool' is in
+# cv2.__file__ and refuses to proceed otherwise.
+numpy==2.5.3
+matplotlib==3.11.2

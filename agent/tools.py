@@ -11,7 +11,7 @@ from tremor.measure import roi_trace, clean_trace, spectrum
 # Thresholds below are not guesses: each was measured empirically in
 # run_gate.py / run_machine_eval.py. See docs/THRESHOLDS.md.
 SNR_TRUST = 6.0           # below this, frequency estimates were unreliable
-TEXTURE_MIN_STD = 15.0    # contrast 0.15 -> std ~7 -> SNR collapsed to 1.6
+TEXTURE_MIN_STD = 2.0     # re-derived post phaseCorrelate fix: std 3.1 passes, 0.9 fails
 ALIAS_FRACTION = 0.40     # peak above 0.4*fps is suspiciously near Nyquist
 STABILIZE_WHEN = 0.5      # stabilize if cam_rms > 0.5 * target_rms
 REJECT_FRAC_MAX = 0.15    # >15% of frames failing correlation = unusable clip
@@ -58,7 +58,14 @@ class Measurement:
 
 
 def assess_surface(frames, roi):
-    """Is there enough visual texture to phase-correlate? Cheap, runs first."""
+    """Cheap pre-flight hint on whether the surface can be phase-correlated.
+
+    CAVEAT: this metric saturates. At low contrast the measured std is dominated by
+    sensor noise, so it bottoms out near 2.0 and stops discriminating -- contrast
+    0.010 (which fails, SNR 2.6) and 0.040 (which works, SNR 19.3) both read ~2.
+    Treat a failure here as a fast path to re-aiming, not as the arbiter. SNR is
+    the arbiter, and the quality gate reaches the same action via low_snr anyway.
+    """
     x, y, w, h = roi
     p = frames[0][y:y+h, x:x+w].astype(np.float32)
     m = cv2.blur(p, (15, 15))

@@ -118,10 +118,41 @@ absolute level reads healthy but which is >50% above its own baseline is returne
 global threshold, because a permanently noisy machine is less interesting than a
 quiet one that just got worse.
 
+## A note on the ablation
+
+`eval_agent.py` reports a single-shot baseline, and that number is unstable by
+construction. Across the phaseCorrelate fix, the texture recalibration and the
+Nyquist routing it read 21.2%, then 70.0%, then 27.5% -- while the agent held at
+86-88% correct-when-answered throughout. Most of that swing came from one choice:
+the contrast of the surface the operator initially aims at.
+
+Do not quote the ratio. `sensitivity.py` sweeps that variable and reports the curve,
+which shows the agent flat at 79.2% across the full range while single-shot spans
+8.3-75%. The defensible claim is invariance to a bad first acquisition, not a
+multiple.
+
+## Nyquist routing
+
+Mechanical looseness is only separable from unbalance via its 3x harmonic. At 30 fps
+that harmonic sits above Nyquist for any shaft above 5 Hz, so the agent was declining
+half that class. It now re-acquires at 240 fps -- but only when confidence is low
+*specifically because* a needed harmonic is unobservable, so misalignment and
+unbalance (which need only 1x and 2x) still resolve in one 30 fps clip.
+
+| n=80 | before routing | after |
+|---|---|---|
+| looseness correct / escalated | 13 / 13 | **19 / 7** |
+| all scenarios | 62.5% | **71.2%** |
+| correct when answered | 86.2% | **87.7%** |
+| escalated | 27.5% | **18.8%** |
+| mean acquisitions | 1.79 | 1.86 |
+
 ## Reproducing
 
 ```bash
 python run_gate.py            # thresholds in rows A-D
 python run_machine_eval.py    # texture and degradation-stack thresholds
-python eval_agent.py 30       # end-to-end task effectiveness + ablation
+python eval_agent.py 80       # end-to-end task effectiveness
+python sensitivity.py 24      # agent vs single-shot across acquisition quality
+python -m pytest tests/       # phaseCorrelate mutation regression
 ```

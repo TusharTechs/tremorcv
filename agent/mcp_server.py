@@ -70,7 +70,8 @@ def capture_clip(session_id: str, aim: str = "housing",
     if env is None:
         return json.dumps({"error": "no such session; call start_session first"})
     if fps >= 240:
-        seconds = min(seconds, 4.0)
+        seconds = min(seconds, 10.0)   # was 4 s to dodge the phaseCorrelate mutation
+                                       # bug; 240 fps / 10 s now measures cleanly
     frames = env.capture(Acquisition(aim=aim, fps=fps, seconds=seconds, braced=braced))
     clip_id = f"{session_id}:{env.n_acquisitions}"
     _CLIPS[clip_id] = {"frames": frames, "fps": fps}

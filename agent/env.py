@@ -24,7 +24,17 @@ FAULT_SIGNATURES = {
 }
 
 # where the operator can aim, and how much surface texture is there
-AIM_POINTS = {"housing": 0.12, "label": 0.55, "grille": 1.00, "bolt_flange": 0.85}
+# A mirror-finish or glossy painted housing under even light genuinely has almost no
+# trackable texture; grilles, cast flanges and printed labels have plenty. These are
+# the contrasts an operator chooses between by aiming elsewhere on the same machine.
+#
+# `housing` at 0.010 is the contrast measured to genuinely fail (SNR 2.6, wrong
+# frequency); 0.015 still succeeds at SNR 20.5. It is set from that measurement,
+# not tuned to make the agent re-aim. After the phaseCorrelate fix the texture
+# floor dropped ~7x, so most real surfaces now work on the first attempt and the
+# re-aim branch fires only when it genuinely must. random_scenario starts half the
+# runs on `label` (workable) and half on `housing` (not), so both paths are tested.
+AIM_POINTS = {"housing": 0.010, "label": 0.55, "grille": 1.00, "bolt_flange": 0.85}
 
 # Camera shake is RESOLUTION-DEPENDENT: a hand rotating by a fixed angle displaces
 # more pixels on a higher-resolution sensor. The real iPhone clip measured 20.5 px
