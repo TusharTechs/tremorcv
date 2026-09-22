@@ -57,38 +57,11 @@ the frequency came out to **0.33%**.
 
 ## 3. Architecture
 
-```mermaid
-flowchart TB
-  CAM["Camera · 30 / 60 / 240 fps"]
-  ING["AWS · Ingest<br/>S3 → Lambda → SQS"]
-  subgraph CMP["OpenCV 5 · AWS Graviton4 + COOL"]
-    P1["Locate vibration · phaseCorrelate"]
-    P2["Reject outliers · cancel camera motion"]
-    P3["cv2.dft spectrum → harmonics → fault"]
-    P1 --> P2 --> P3
-  end
-  ST["AWS · State<br/>DynamoDB baselines · S3 evidence · CloudWatch trace"]
-  AG["Agent · deterministic policy or MCP<br/>OpenCV 5 tool surface"]
-  VER{"Verdict"}
-  UI["Web endpoint"]
-  HUM["Human · confidence &lt; 0.55"]
-  CAM --> ING --> P1
-  P3 --> AG --> VER
-  P3 -.-> ST
-  VER -->|report| UI
-  VER -->|escalate| HUM
-  VER ==>|re-acquire| CAM
-  classDef aws fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#0f172a
-  classDef cv fill:#f0fdfa,stroke:#14b8a6,stroke-width:1.5px,color:#0f172a
-  classDef ag fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#0f172a
-  classDef pl fill:#ffffff,stroke:#cbd5e1,color:#0f172a
-  class ING,ST aws
-  class P1,P2,P3 cv
-  class AG,VER ag
-  class CAM,UI,HUM pl
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="TREMOR architecture" width="900">
+</p>
 
-<sub>Source: [`docs/architecture.mmd`](docs/architecture.mmd)</sub>
+<sub>Source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> · regenerate with <a href="docs/render-architecture.sh"><code>docs/render-architecture.sh</code></a></sub>
 
 Capture → S3 → Lambda → SQS → **OpenCV 5 pipeline on AWS Graviton under COOL** →
 DynamoDB/S3 state → agent → verdict. The verdict either reports, escalates to a

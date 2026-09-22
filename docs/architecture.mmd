@@ -1,20 +1,17 @@
-flowchart TB
-  CAM["Camera · 30 / 60 / 240 fps"]
+flowchart LR
+  CAM["Camera<br/>30 / 60 / 240 fps"]
   ING["AWS · Ingest<br/>S3 → Lambda → SQS"]
   subgraph CMP["OpenCV 5 · AWS Graviton4 + COOL"]
-    P1["Locate vibration · phaseCorrelate"]
-    P2["Reject outliers · cancel camera motion"]
-    P3["cv2.dft spectrum → harmonics → fault"]
-    P1 --> P2 --> P3
+    direction TB
+    P1["Locate vibration<br/>phaseCorrelate"] --> P2["Reject outliers<br/>cancel camera motion"] --> P3["cv2.dft spectrum<br/>harmonics → fault"]
   end
-  ST["AWS · State<br/>DynamoDB baselines · S3 evidence · CloudWatch trace"]
-  AG["Agent · deterministic policy or MCP<br/>OpenCV 5 tool surface"]
+  ST["AWS · State<br/>DynamoDB · S3 · CloudWatch"]
+  AG["Agent<br/>policy or MCP<br/>OpenCV 5 tools"]
   VER{"Verdict"}
   UI["Web endpoint"]
-  HUM["Human · confidence &lt; 0.55"]
-  CAM --> ING --> P1
-  P3 --> AG --> VER
-  P3 -.-> ST
+  HUM["Human<br/>conf &lt; 0.55"]
+  CAM --> ING --> CMP --> AG --> VER
+  CMP -.-> ST
   VER -->|report| UI
   VER -->|escalate| HUM
   VER ==>|re-acquire| CAM
