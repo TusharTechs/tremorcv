@@ -12,9 +12,22 @@ mv tremorcv-main tremor && cd tremor
 
 python3 -m venv .venv
 .venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q -r requirements.txt
+# requirements.txt pins opencv-python (the full wheel), which links libGL for its GUI
+# module. A headless server has no libGL, so `import cv2` raises ImportError, uvicorn
+# exits, and systemd's Restart=always turns it into a crash loop that looks like a
+# slow startup. Install the headless wheel instead -- identical imgproc/core, no GUI.
+grep -v '^opencv-python==' requirements.txt > /tmp/req-headless.txt
+echo "opencv-python-headless==5.0.0.93" >> /tmp/req-headless.txt
+.venv/bin/pip install -q -r /tmp/req-headless.txt
 
-.venv/bin/python -c "import cv2; print('OpenCV', cv2.__version__)"
+# Prove cv2 imports BEFORE handing it to systemd, so a failure is visible here
+# rather than as an opaque restart loop.
+.venv/bin/python -c "import cv2; print('cv2 import OK', cv2.__version__)" || {
+  echo "FATAL: cv2 will not import; not starting the service"
+  .venv/bin/python -c "import cv2" 2>&1 | tail -5
+  exit 1
+}
+
 
 cat > /etc/systemd/system/tremor.service <<'SVC'
 [Unit]

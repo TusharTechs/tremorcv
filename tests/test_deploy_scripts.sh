@@ -25,5 +25,14 @@ env -i bash -c 'set -u; export PYTHONPATH="${PYTHONPATH:-}"; echo ok' >/dev/null
 grep -q 'export HOME=' deploy/run_all.sh    || { echo "FAIL: run_all.sh does not pin HOME"; fail=1; }
 grep -q '^unset PYTHONPATH' deploy/run_all.sh || { echo "FAIL: run_all.sh does not clear PYTHONPATH before the baseline"; fail=1; }
 
-[ $fail -eq 0 ] && echo "deploy scripts OK (syntax + empty-environment safety)"
+# The headless-wheel trap: opencv-python links libGL, which a server does not have.
+# Cost one deploy; caught here from now on.
+grep -q 'opencv-python-headless' deploy/setup_stock.sh \
+  || { echo "FAIL: setup_stock.sh must use the headless wheel"; fail=1; }
+grep -q 'opencv-python-headless' deploy/webapp-userdata.sh \
+  || { echo "FAIL: webapp-userdata.sh must use the headless wheel (libGL is absent on servers)"; fail=1; }
+grep -q "import cv2; print('cv2 import OK'" deploy/webapp-userdata.sh \
+  || { echo "FAIL: webapp-userdata.sh must verify cv2 imports before starting the service"; fail=1; }
+
+[ $fail -eq 0 ] && echo "deploy scripts OK (syntax + empty-environment + headless-wheel safety)"
 exit $fail
