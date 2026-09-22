@@ -83,7 +83,22 @@ An n=80 confusion matrix localised the remaining error almost entirely to one cl
 around 0.02 px — far below the measurement noise floor — so whatever the spectrum
 shows at those frequencies is noise. Feeding it into a ratio test **invents a fault**.
 
-`diagnose` now gates each harmonic at `HARMONIC_MIN_SNR × noise_floor` *before*
+After gating (same 80 scenarios, same seed):
+
+| Truth | before | after |
+|---|---|---|
+| healthy | 3/12 | **10/13** |
+| mechanical_looseness | 16/16 | 16/16 |
+| misalignment | 19/20 | 17/18 |
+| unbalance | 9/12 | 8/12 |
+| **overall, when answered** | **78.3%** | **86.4%** |
+
+The single-shot ablation *fell* from 41.2% to 21.2% over the same change, which is
+the expected direction: it operates on unusable clips, and the old lenient classifier
+let it guess "unbalance" often enough to score by luck. Gating makes it admit it
+cannot tell.
+
+`diagnose` gates each harmonic at `HARMONIC_MIN_SNR × noise_floor` *before*
 taking ratios, and distinguishes three cases that were previously conflated:
 
 - **all harmonics below the floor** → `below_measurement_floor`, confidence 0. The

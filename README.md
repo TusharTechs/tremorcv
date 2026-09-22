@@ -29,14 +29,19 @@ docs/MCP.md           MCP server and the two-orchestrator design
 - Known limit: smooth/glossy surfaces fail (SNR 1.6 at 15% surface contrast).
 - Known limit: 30 fps caps measurement at 15 Hz (900 RPM); 240 fps -> 120 Hz.
 
-Agent task effectiveness (n=30), against a single-shot ablation:
+Agent task effectiveness (n=80), against a single-shot ablation that takes one
+acquisition and diagnoses whatever comes out:
 
 | | agent | single-shot |
 |---|---|---|
-| fault correct (all scenarios) | **63.3%** | 30.0% |
-| fault correct when it answered | **79.2%** | 30.0% |
-| escalated instead of guessing | 20.0% | 0.0% |
-| median shaft-frequency error | **0.000 Hz** | 3.250 Hz |
+| fault correct (all scenarios) | **63.7%** | 21.2% |
+| fault correct **when it answered** | **86.4%** | 21.2% |
+| escalated instead of guessing | 26.2% | 0.0% |
+| median shaft-frequency error | **0.000 Hz** | 3.200 Hz |
+| 95% CI (all scenarios) | 53-73% | 14-31% |
+
+Per class, correct when answered: looseness 16/16, misalignment 17/18,
+healthy 10/13, unbalance 8/12.
 
 ## Setup
 
