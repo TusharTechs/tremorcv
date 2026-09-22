@@ -103,3 +103,33 @@ Then **terminate the instance**. Also check: EBS volume deleted, no Elastic IP h
 - On an 8-core Apple M-series, process scaling hit 60% efficiency at 4 workers and 39%
   at 8, likely from heterogeneous P/E cores. **Graviton4 has uniform cores, so expect
   better linearity — this run confirms or refutes that prediction.**
+
+
+## Updating the live demo endpoint without downtime
+
+Replacing the instance costs about three minutes of 404s. During judging that is
+indistinguishable from a broken submission, so updates are applied in place instead:
+
+```bash
+./deploy/remote.sh status     # service state, restart count, health, current commit
+./deploy/remote.sh update     # git pull, reinstall only if requirements changed, restart
+./deploy/remote.sh logs       # recent journal
+./deploy/remote.sh 'df -h'    # any other command
+```
+
+Downtime is a single systemd restart, roughly two seconds.
+
+`update.sh` will not restart into a build that cannot import: it runs
+`python -c "import cv2, webapp.server"` first and, on failure, resets to the previous
+commit and leaves the running process untouched. A bad push therefore degrades to
+"not updated" rather than "site down".
+
+This goes over **AWS Systems Manager, not SSH**. SSH is unusable on the developer's
+network: the ISP intercepts port 22, completes the TCP handshake on the destination's
+behalf and then sends no banner, so key exchange never happens. SSM needs no inbound
+port and no key, only the `tremor-ssm` instance profile
+(`AmazonSSMManagedInstanceCore`).
+
+The instance profile must be attached **at launch**. Attaching it to a running
+instance works, but the SSM agent has already failed to get credentials and backed
+off, so it does not register until it is restarted.

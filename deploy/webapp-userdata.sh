@@ -4,11 +4,14 @@ exec > >(tee /var/log/tremor-web.log > /dev/console) 2>&1
 set -x
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq python3-venv python3-pip curl
+apt-get install -y -qq python3-venv python3-pip curl git
 
 cd /opt
-curl -sL https://github.com/TusharTechs/tremorcv/archive/refs/heads/main.tar.gz | tar xz
-mv tremorcv-main tremor && cd tremor
+# git clone, not a tarball: deploy/update.sh pulls in place so a UI change costs one
+# systemd restart (~2s) instead of a full instance replacement (~3 min of downtime).
+apt-get install -y -qq git
+git clone --depth 50 https://github.com/TusharTechs/tremorcv.git tremor
+cd tremor
 
 python3 -m venv .venv
 .venv/bin/pip install -q --upgrade pip
