@@ -1,0 +1,168 @@
+"""The OpenCV 5 tool surface the agent can call.
+
+Every tool returns plain JSON-serialisable data so each call can be logged to the
+decision trace. The agent never touches pixels directly -- it reasons over these
+measurements, and its decisions change which tool it calls next.
+"""
+from dataclasses import dataclass, asdict, field
+import numpy as np, cv2
+from tremor.measure import roi_trace, clean_trace, spectrum
+
+# Thresholds below are not guesses: each was measured empirically in
+# run_gate.py / run_machine_eval.py. See docs/THRESHOLDS.md.
+SNR_TRUST = 6.0           # below this, frequency estimates were unreliable
+TEXTURE_MIN_STD = 15.0    # contrast 0.15 -> std ~7 -> SNR collapsed to 1.6
+ALIAS_FRACTION = 0.40     # peak above 0.4*fps is suspiciously near Nyquist
+STABILIZE_WHEN = 0.5      # stabilize if cam_rms > 0.5 * target_rms
+REJECT_FRAC_MAX = 0.15    # >15% of frames failing correlation = unusable clip
+
+
+@dataclass
+class Peak:
+    freq_hz: float
+    amp_px: float
+    snr: float
+
+
+@dataclass
+class Measurement:
+    peaks: list = field(default_factory=list)
+    fps: float = 0.0
+    duration_s: float = 0.0
+    bin_hz: float = 0.0
+    stabilized: bool = False
+    cam_rms_px: float = 0.0
+    signal_rms_px: float = 0.0
+    nyquist_hz: float = 0.0
+    reject_frac: float = 0.0
+
+    def dict(self):
+        d = asdict(self)
+        d["peaks"] = [asdict(p) if not isinstance(p, dict) else p for p in self.peaks]
+        return d
+
+
+def assess_surface(frames, roi):
+    """Is there enough visual texture to phase-correlate? Cheap, runs first."""
+    x, y, w, h = roi
+    p = frames[0][y:y+h, x:x+w].astype(np.float32)
+    m = cv2.blur(p, (15, 15))
+    std = float(np.sqrt(max(cv2.blur(p * p, (15, 15)).mean() - (m * m).mean(), 0)))
+    return {"texture_std": std, "sufficient": std >= TEXTURE_MIN_STD,
+            "threshold": TEXTURE_MIN_STD}
+
+
+def measure(frames, fps, target_roi, static_roi, n_peaks=4, fmin=0.5):
+    """Sub-pixel displacement -> spectrum -> ranked peaks. The core OpenCV workload."""
+    t_raw, t_resp = roi_trace(frames, target_roi, return_response=True)
+    c_raw, c_resp = roi_trace(frames, static_roi, return_response=True)
+    tgt, rej_t = clean_trace(t_raw[:, 0], t_resp)
+    cam, rej_c = clean_trace(c_raw[:, 0], c_resp)
+    reject_frac = max(rej_t, rej_c)
+    cam_rms, tgt_rms = float(np.std(cam)), float(np.std(tgt))
+    stabilized = cam_rms > STABILIZE_WHEN * tgt_rms
+    sig = tgt - cam if stabilized else tgt
+
+    f, A = spectrum(sig, fps)
+    band = f >= fmin
+    fb, Ab = f[band], A[band]
+    order = np.argsort(Ab)[::-1]
+
+    picked, peaks = [], []
+    for k in order:
+        if any(abs(fb[k] - p) < 3 * (f[1] - f[0]) for p in picked):
+            continue
+        picked.append(fb[k])
+        mask = np.ones_like(Ab, bool)
+        mask[max(0, k - 3):k + 4] = False
+        floor = float(np.median(Ab[mask]))
+        peaks.append(Peak(float(fb[k]), float(Ab[k]), float(Ab[k] / floor) if floor else 0.0))
+        if len(peaks) >= n_peaks:
+            break
+
+    return Measurement(peaks=peaks, fps=float(fps), duration_s=len(frames) / fps,
+                       bin_hz=float(f[1]), stabilized=stabilized, cam_rms_px=cam_rms,
+                       signal_rms_px=float(np.std(sig)), nyquist_hz=fps / 2.0,
+                       reject_frac=reject_frac)
+
+
+def assess_quality(meas: Measurement, surface: dict):
+    """Decide whether this measurement can be trusted, and if not, precisely why.
+
+    The `reasons` are what the agent acts on -- each maps to a different remedy.
+    """
+    problems, top = [], (meas.peaks[0] if meas.peaks else None)
+    if not surface["sufficient"]:
+        problems.append("low_texture")
+    if top is None or top.snr < SNR_TRUST:
+        problems.append("low_snr")
+    if top and top.freq_hz > ALIAS_FRACTION * meas.fps:
+        problems.append("possible_aliasing")
+    if meas.cam_rms_px > 8 * max(meas.signal_rms_px, 1e-6):
+        problems.append("excessive_camera_motion")
+    if meas.reject_frac > REJECT_FRAC_MAX:
+        problems.append("unstable_correlation")
+    return {"trustworthy": not problems, "reasons": problems,
+            "top_snr": (top.snr if top else 0.0)}
+
+
+HEALTHY_TOTAL_PX = 0.42   # below this, 1x-dominance is residual, not a fault
+
+
+def diagnose(meas: Measurement, shaft_hz: float, tol_hz=None,
+             healthy_below=HEALTHY_TOTAL_PX):
+    """Classic vibration rules over 1x/2x/3x amplitudes.
+
+    Order matters: amplitude is checked BEFORE shape. A healthy machine and an
+    unbalanced one have nearly identical harmonic ratios (both 1x-dominant); only
+    the magnitude distinguishes them. Real analysts use ISO 10816 velocity bands
+    for the same reason.
+    """
+    tol = tol_hz or max(3 * meas.bin_hz, 0.25)
+    def amp_at(mult):
+        want = shaft_hz * mult
+        c = [p for p in meas.peaks if abs(p.freq_hz - want) <= tol]
+        return max((p.amp_px for p in c), default=0.0)
+
+    a1, a2, a3 = amp_at(1), amp_at(2), amp_at(3)
+    tot = a1 + a2 + a3
+    if tot <= 0:
+        return {"fault": "indeterminate", "confidence": 0.0,
+                "harmonics": {"1x": a1, "2x": a2, "3x": a3}}
+
+    r1, r2, r3 = a1 / tot, a2 / tot, a3 / tot
+    if tot < healthy_below and r1 > 0.6:
+        return {"fault": "healthy", "confidence": round(float(min(1.0, (healthy_below - tot)
+                                                                  / healthy_below + 0.55)), 3),
+                "harmonics": {"1x": round(a1, 4), "2x": round(a2, 4), "3x": round(a3, 4)},
+                "ratios": {"1x": round(r1, 3), "2x": round(r2, 3), "3x": round(r3, 3)},
+                "total_px": round(tot, 4)}
+    if r2 > 0.45 and a1 > 0:
+        fault, conf = "misalignment", min(1.0, r2 / 0.45 * 0.8)
+    elif r1 > 0.65:
+        fault, conf = "unbalance", min(1.0, r1 / 0.65 * 0.8)
+    elif r3 > 0.20 and r1 > 0.25:
+        fault, conf = "mechanical_looseness", min(1.0, (r3 / 0.20) * 0.6)
+    else:
+        fault, conf = "indeterminate", 0.3
+    return {"fault": fault, "confidence": round(float(conf), 3),
+            "harmonics": {"1x": round(a1, 4), "2x": round(a2, 4), "3x": round(a3, 4)},
+            "ratios": {"1x": round(r1, 3), "2x": round(r2, 3), "3x": round(r3, 3)},
+            "total_px": round(tot, 4)}
+
+
+def compare_baseline(baseline: dict, meas: Measurement, shaft_hz: float):
+    """Trend against this asset's own history -- absolute amplitude means little."""
+    if not baseline:
+        return {"has_baseline": False, "note": "first observation; stored as baseline"}
+    out, tol = {}, max(3 * meas.bin_hz, 0.25)
+    for mult in (1, 2, 3):
+        key = f"{mult}x"
+        prev = baseline.get(key, 0.0)
+        cur = max((p.amp_px for p in meas.peaks
+                   if abs(p.freq_hz - shaft_hz * mult) <= tol), default=0.0)
+        out[key] = {"baseline_px": round(prev, 4), "current_px": round(cur, 4),
+                    "change_pct": (round((cur - prev) / prev * 100, 1) if prev > 1e-6 else None)}
+    worst = max((v["change_pct"] or 0) for v in out.values())
+    return {"has_baseline": True, "harmonics": out, "max_increase_pct": worst,
+            "trending_worse": worst > 50}

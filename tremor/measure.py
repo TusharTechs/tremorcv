@@ -9,17 +9,54 @@ Pipeline (all OpenCV 5 classical imgproc/core -- the COOL-accelerated path):
 import numpy as np, cv2
 
 
-def roi_trace(frames, roi):
-    """Displacement (px) of `roi` in every frame, relative to frame 0, sub-pixel."""
+def roi_trace(frames, roi, return_response=False):
+    """Displacement (px) of `roi` in every frame, relative to frame 0, sub-pixel.
+
+    Also returns phaseCorrelate's `response` -- the normalised correlation-peak
+    strength. It is easy to discard (the 3rd tuple element) but it is the library
+    telling you how much it trusts each estimate, and a small fraction of frames
+    fail catastrophically (tens of pixels on a sub-pixel signal). See clean_trace.
+    """
     x, y, w, h = roi
     win = cv2.createHanningWindow((w, h), cv2.CV_32F)
     base = np.ascontiguousarray(frames[0][y:y + h, x:x + w], np.float32)
     out = np.zeros((len(frames), 2))
+    resp = np.zeros(len(frames))
     for i, f in enumerate(frames):
         cur = np.ascontiguousarray(f[y:y + h, x:x + w], np.float32)
-        (dx, dy), _ = cv2.phaseCorrelate(base, cur, win)
+        (dx, dy), r = cv2.phaseCorrelate(base, cur, win)
         out[i] = (dx, dy)
-    return out
+        resp[i] = r
+    return (out, resp) if return_response else out
+
+
+def clean_trace(dx, response=None, mad_k=6.0, resp_frac=0.55, max_reject=0.35):
+    """Reject catastrophic phaseCorrelate failures and interpolate across them.
+
+    Two independent detectors, because neither alone is sufficient:
+      * MAD  -- true vibration is bounded and smooth, so a sample many robust
+                deviations from the median is not physical.
+      * response -- OpenCV's own confidence; failures correlate with low values.
+
+    Returns (cleaned, reject_fraction). A high reject fraction is itself a signal:
+    the agent treats it as a reason to re-acquire rather than silently patching.
+    """
+    dx = np.asarray(dx, float).copy()
+    n = len(dx)
+    med = np.median(dx)
+    mad = np.median(np.abs(dx - med)) * 1.4826
+    bad = np.abs(dx - med) > mad_k * max(mad, 1e-6)
+    if response is not None:
+        r = np.asarray(response, float)
+        good_med = np.median(r[~bad]) if (~bad).any() else np.median(r)
+        bad |= r < resp_frac * good_med
+    frac = float(bad.mean())
+    if frac > max_reject:          # too broken to repair -- let the caller see it
+        return dx, frac
+    if bad.any() and (~bad).any():
+        idx = np.arange(n)
+        dx[bad] = np.interp(idx[bad], idx[~bad], dx[~bad])
+    return dx, frac
 
 
 def spectrum(trace, fps):

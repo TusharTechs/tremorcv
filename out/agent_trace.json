@@ -1,0 +1,126 @@
+{
+  "resolved": true,
+  "escalated": false,
+  "fault": "misalignment",
+  "confidence": 0.952,
+  "shaft_hz": 4.3,
+  "acquisitions": 2,
+  "reason": "shaft 4.30 Hz; harmonics 1x/2x/3x = 0.32/0.54/0.15, total 1.157 px -> misalignment (confidence 0.95).",
+  "steps": [
+    {
+      "n": 1,
+      "acquisition": {
+        "aim": "housing",
+        "fps": 30,
+        "seconds": 10,
+        "braced": false
+      },
+      "surface": {
+        "texture_std": 5.648561954498291,
+        "sufficient": false,
+        "threshold": 15.0
+      },
+      "measurement": {
+        "peaks": [
+          {
+            "freq_hz": 10.5,
+            "amp_px": 3.1372845400516964,
+            "snr": 2.1813266773916746
+          },
+          {
+            "freq_hz": 13.200000000000001,
+            "amp_px": 3.0093655102251393,
+            "snr": 2.0908838427543968
+          },
+          {
+            "freq_hz": 3.9000000000000004,
+            "amp_px": 2.9004191219046316,
+            "snr": 2.015220305072984
+          },
+          {
+            "freq_hz": 8.9,
+            "amp_px": 2.5247854110560817,
+            "snr": 1.7542013439252317
+          }
+        ],
+        "fps": 30.0,
+        "duration_s": 10.0,
+        "bin_hz": 0.1,
+        "stabilized": false,
+        "cam_rms_px": 3.780941649322415,
+        "signal_rms_px": 10.007871214861503,
+        "nyquist_hz": 15.0
+      },
+      "quality": {
+        "trustworthy": false,
+        "reasons": [
+          "low_texture",
+          "low_snr"
+        ],
+        "top_snr": 2.1813266773916746
+      },
+      "decision": "re_acquire",
+      "rationale": "surface texture 5.6 < 15; phase correlation has nothing to lock onto. Re-aiming at 'grille'.",
+      "next_acquisition": {
+        "aim": "grille",
+        "fps": 30,
+        "seconds": 10,
+        "braced": false
+      }
+    },
+    {
+      "n": 2,
+      "acquisition": {
+        "aim": "grille",
+        "fps": 30,
+        "seconds": 10,
+        "braced": false
+      },
+      "surface": {
+        "texture_std": 44.09794616699219,
+        "sufficient": true,
+        "threshold": 15.0
+      },
+      "measurement": {
+        "peaks": [
+          {
+            "freq_hz": 8.6,
+            "amp_px": 0.6196760118940742,
+            "snr": 14.05646986185453
+          },
+          {
+            "freq_hz": 4.3,
+            "amp_px": 0.3669168053777815,
+            "snr": 8.32843431700687
+          },
+          {
+            "freq_hz": 12.9,
+            "amp_px": 0.17021361210841285,
+            "snr": 3.8432573863900936
+          },
+          {
+            "freq_hz": 3.1,
+            "amp_px": 0.13640785097271443,
+            "snr": 3.094218283934577
+          }
+        ],
+        "fps": 30.0,
+        "duration_s": 10.0,
+        "bin_hz": 0.1,
+        "stabilized": true,
+        "cam_rms_px": 4.769661719901869,
+        "signal_rms_px": 1.0167833120831835,
+        "nyquist_hz": 15.0
+      },
+      "quality": {
+        "trustworthy": true,
+        "reasons": [],
+        "top_snr": 14.05646986185453
+      },
+      "decision": "report",
+      "rationale": "shaft 4.30 Hz; harmonics 1x/2x/3x = 0.32/0.54/0.15, total 1.157 px -> misalignment (confidence 0.95).",
+      "next_acquisition": null
+    }
+  ],
+  "wall_s": 1.3194148330076132
+}
