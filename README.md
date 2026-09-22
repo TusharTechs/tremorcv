@@ -1,92 +1,214 @@
-# TREMOR — video vibration measurement
+<p align="center">
+  <img src="assets/logo.svg" alt="TREMOR CV" width="440">
+</p>
 
-**[Technical report](REPORT.md)** · **[Architecture](docs/architecture.mmd)** ·
-**[Thresholds and their empirical basis](docs/THRESHOLDS.md)** ·
-**[MCP surface](docs/MCP.md)** · **[Graviton runbook](deploy/README.md)**
+<p align="center">
+  <b>Machine vibration measured from ordinary handheld video.</b><br>
+  OpenCV 5 recovers sub-pixel displacement; an agent decides what to measure next.
+</p>
 
-Measures machine vibration from ordinary video. Sub-pixel displacement via
-OpenCV 5 phase correlation, temporal spectrum, fault frequencies.
+<p align="center">
+  <img alt="OpenCV" src="https://img.shields.io/badge/OpenCV-5.0.0-14b8a6?style=flat-square">
+  <img alt="AWS" src="https://img.shields.io/badge/AWS-Graviton4%20%2B%20COOL-f59e0b?style=flat-square">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%E2%80%933.14-3776ab?style=flat-square">
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-server-a855f7?style=flat-square">
+  <img alt="Competition" src="https://img.shields.io/badge/OpenCV%20AI%20Competition-2026-0f172a?style=flat-square">
+</p>
 
+<p align="center">
+  <a href="REPORT.md"><b>Technical report</b></a> ·
+  <a href="docs/THRESHOLDS.md">Thresholds</a> ·
+  <a href="docs/MCP.md">MCP surface</a> ·
+  <a href="deploy/README.md">Graviton runbook</a>
+</p>
+
+---
+
+Vibration analysis catches rotating-machine failure before it happens. It normally
+needs a contact accelerometer and a certified analyst, so most of the world's pumps,
+motors, fans and gearboxes are never measured — they run to failure.
+
+Camera-based motion amplification already exists commercially. Every such product is a
+**visualisation tool**: it renders an amplified video and hands it to the analyst, who
+remains the scarce, expensive part. **The gap is the analyst, not the algorithm.**
+
+TREMOR measures the vibration *and* judges whether it can trust the measurement — going
+back for a better clip when it cannot, and declining to answer when it still cannot.
+
+## Measured results
+
+| | |
+|---|---|
+| Real handheld iPhone clip, ground truth 7.30 Hz | **7.276 Hz — 0.33% error**, SNR 196 |
+| Camera motion during that clip | **72.3 px peak-to-peak**, 25× the signal |
+| 1×/2×/3× through shake + rolling shutter + glare + H.264 | **0.000 Hz error**, amplitude within ±5% |
+| Smallest measurable motion | **0.01 px** at SNR 23.3 |
+| Agent fault diagnosis (n=80) | **71.2%** overall · **87.7%** when it committed · 18.8% escalated |
+| Agent accuracy vs how badly the operator aims | **flat at 79.2%** (single-shot: 8.3–75%) |
+
+## Architecture
+
+```mermaid
+flowchart TB
+  CAM["Phone or fixed camera<br/>handheld is fine, 72 px of hand motion measured OK<br/>30 / 60 / 240 fps"]
+
+  subgraph ING["AWS · INGEST"]
+    direction LR
+    S3R[("S3<br/>raw clips")]
+    LAM["Lambda<br/>on s3:ObjectCreated"]
+    SQS["SQS<br/>job queue"]
+    S3R --> LAM
+    LAM --> SQS
+  end
+
+  subgraph CMP["AWS · EC2 c8g.2xlarge Graviton4 · COOL AMI, OpenCV 5.0 + Arm KleidiCV"]
+    direction TB
+    W["N single-threaded workers, one per vCPU<br/>phaseCorrelate does not parallelise internally,<br/>so throughput is process-level"]
+    subgraph CV["OpenCV 5 pipeline — the claimed core workload"]
+      direction TB
+      P1["1 · Locate what is vibrating<br/>temporal high-pass, boxFilter energy + texture"]
+      P2["2 · Sub-pixel displacement<br/>cv2.phaseCorrelate, createHanningWindow"]
+      P3["3 · Reject correlation failures<br/>MAD + correlation response"]
+      P4["4 · Cancel camera motion<br/>static-reference subtraction, adaptive"]
+      P5["5 · Temporal spectrum<br/>Hann window, cv2.dft, amplitude in px"]
+      P6["6 · Shaft rate and fault<br/>harmonic comb, noise-floor gated 1x / 2x / 3x"]
+      P1 --> P2
+      P2 --> P3
+      P3 --> P4
+      P4 --> P5
+      P5 --> P6
+    end
+    W -.-> P1
+  end
+
+  subgraph ST["AWS · STATE"]
+    direction LR
+    DDB[("DynamoDB<br/>per-asset baselines")]
+    S3E[("S3<br/>evidence + previews")]
+    CW["CloudWatch<br/>decision trace"]
+  end
+
+  subgraph AG["DECIDE"]
+    direction LR
+    POL{{"Agent policy<br/>deterministic reference, no API key<br/>or any MCP client"}}
+    TOOL["assess_quality · estimate_shaft<br/>diagnose · compare_baseline"]
+    POL --> TOOL
+  end
+
+  VER{"Verdict"}
+  UI["Web endpoint<br/>FastAPI + SSE, live decision trace"]
+  HUM["Human<br/>escalated with evidence when<br/>confidence below 0.55, 18.8% of runs"]
+
+  CAM --> S3R
+  SQS --> P1
+  P6 --> DDB
+  P6 --> S3E
+  DDB --> POL
+  TOOL --> VER
+  TOOL -.-> CW
+  VER -->|report| UI
+  VER -->|escalate| HUM
+  VER ==>|"re-acquire: the vision result changes what gets measured next"| CAM
+
+  classDef aws fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#0f172a
+  classDef cv fill:#f0fdfa,stroke:#14b8a6,stroke-width:1.5px,color:#0f172a
+  classDef ag fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#0f172a
+  classDef pl fill:#ffffff,stroke:#cbd5e1,color:#0f172a
+  class S3R,LAM,SQS,DDB,S3E,CW aws
+  class P1,P2,P3,P4,P5,P6,W cv
+  class POL,TOOL,VER ag
+  class CAM,UI,HUM pl
 ```
-tremor/     measurement core (measure.py) + validation generators (synth.py, machine.py)
-bench/      COOL/Graviton benchmark harness (core, suite, cost, pricing)
-deploy/     Graviton + COOL deployment and baseline scripts
-run_gate.py           day 1-3 physics gate on synthetic video
-run_machine_eval.py   realistic fault-signature evaluation
-analyze_video.py      measure a real video file
-run_bench.py          benchmark one environment -> results/<label>.json
-compare.py            merge results -> report tables
-agent/      perception-decision-action loop + MCP server
-webapp/     FastAPI endpoint + single-page UI (no build step, no CDN)
-run_agent.py          single agent run with full decision trace
-eval_agent.py         task effectiveness vs a single-shot ablation
-test_mcp.py           exercise the MCP tool surface, no client needed
-docs/THRESHOLDS.md    empirical basis for every threshold
-docs/MCP.md           MCP server and the two-orchestrator design
-```
 
-## Web endpoint
+## Why handheld works
+
+Hand motion and machine vibration live in different parts of the spectrum. Measured on
+the real clip:
+
+| Band | Share of camera-motion energy |
+|---|---|
+| 0.2–1 Hz (sway) | **78.6%** |
+| 1–3 Hz | 15.4% |
+| 3–5 Hz | 5.3% |
+| **5–15 Hz (signal band)** | **0.7%** |
+
+At 7.3 Hz the hand contributed 0.022 px against a 2.885 px signal — **131× separation**.
+A tripod is not required by the physics. The same property drives automatic ROI
+selection: high-pass each pixel in time and what remains is vibration, not sway.
+
+## What a vision result changes
+
+The loop is agentic because the measurement decides the *next acquisition*, not just
+the next sentence.
+
+| Measurement says | Agent does |
+|---|---|
+| texture below the correlation floor | re-aim at a grille, flange or label |
+| SNR < 6, handheld | ask the operator to brace |
+| SNR still low after bracing | try a more textured aim point |
+| >15% of frames failing correlation | discard the clip |
+| a needed harmonic above Nyquist | **re-acquire at 240 fps** |
+| confidence < 0.55 | escalate to a human with the evidence |
+
+The Nyquist case is the clearest: looseness is only separable via its 3× harmonic,
+which sits above Nyquist at 30 fps for any shaft above 5 Hz. Routing those cases to
+240 fps took looseness from 13 correct / 13 escalated to **19 correct / 7 escalated**.
+
+## Quick start
 
 ```bash
-.venv/bin/uvicorn webapp.server:app --port 8077     # then open http://localhost:8077
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+.venv/bin/python run_gate.py                  # frequency accuracy, amplitude floor, shake rejection
+.venv/bin/python eval_agent.py 80             # agent effectiveness + confusion matrix
+.venv/bin/python sensitivity.py 24            # what the loop is worth, as a curve
+.venv/bin/python -m pytest tests/             # phaseCorrelate mutation regression
+.venv/bin/python analyze_video.py <clip.mov>  # measure your own footage
 ```
 
-Two modes. **Simulated** streams the agent loop step by step over SSE, so each
-decision appears as it is made and the visual evidence that drove it is on screen
-next to it. **Upload clip** measures real footage: the vibrating region and a rigid
-reference are located automatically, and the chosen regions are drawn on a preview
-frame so the operator can see what was measured.
-
-Auto-ROI is not naive motion energy. With a handheld camera everything moves, and
-raw energy picked a laptop keyboard as the "machine" on a real test clip. Hand motion
-is almost entirely below 1 Hz, so each pixel is high-passed in time first; what
-remains is vibration rather than sway. On the real iPhone clip that took SNR from
-4.1 (half-split frame) to 86.9, with the quality gate passing.
-
-## Validated so far
-
-- Real iPhone clip, fully handheld (20.5 px rms camera motion, 72 px p2p):
-  **7.276 Hz measured vs 7.30 Hz ground truth — 0.33% error, SNR 196.**
-- Simulated 3-component fault signature through real handheld motion + rolling
-  shutter + specular glare + H.264: **0.000 Hz error on 1x, 2x and 3x.**
-- Known limit: smooth/glossy surfaces fail (SNR 1.6 at 15% surface contrast).
-- Known limit: 30 fps caps measurement at 15 Hz (900 RPM); 240 fps -> 120 Hz.
-
-Agent task effectiveness (n=80): **71.2%** of scenarios diagnosed correctly,
-**87.7%** correct on the ones it committed to, 18.8% escalated to a human rather
-than guessed. Median shaft-frequency error 0.000 Hz.
-
-### What the agentic loop is actually worth
-
-A single agent-vs-baseline ratio is not a defensible claim: across three of our own
-changes the single-shot baseline moved 21% -> 70% -> 27.5% while the agent stayed
-flat at 86-88%. The ablation was largely measuring how hard the starting conditions
-had been made -- a knob the author controls. So we sweep it instead (`sensitivity.py`,
-n=24 per point, identical machines at every point, only the surface the operator
-first aims at varies):
-
-| initial surface | contrast | agent (all) | agent (when it answered) | single-shot | escalated | acquisitions |
-|---|---|---|---|---|---|---|
-| mirror housing | 0.010 | **79.2%** | 95.0% | **8.3%** | 16.7% | 2.21 |
-| glossy paint | 0.040 | **79.2%** | 95.0% | 75.0% | 16.7% | 1.04 |
-| worn paint | 0.150 | **79.2%** | 90.5% | 75.0% | 12.5% | 1.04 |
-| printed label | 0.550 | **79.2%** | 86.4% | 70.8% | 8.3% | 1.12 |
-| cast grille | 1.000 | **79.2%** | 86.4% | 70.8% | 8.3% | 1.12 |
-
-**The agent's accuracy is flat at 79.2% regardless of how badly the operator aims.**
-Single-shot collapses from 75% to 8.3% once the surface drops below the correlation
-floor. The agent pays for that robustness only when it needs to -- 2.21 acquisitions
-on an unusable surface, 1.04 on a workable one.
-
-The honest reading: the loop buys **invariance to a bad first acquisition**, not raw
-accuracy. Where the operator already aims well and holds steady it converges toward
-single-shot and costs an extra fraction of an acquisition. Its value is bounded by
-how often first acquisitions are inadequate, which is an operational question about
-deployment, not a property of the algorithm.
-
-## Setup
+**Web endpoint** — no build step, no CDN, runs with uvicorn and nothing else:
 
 ```bash
-python3 -m venv .venv && ./.venv/bin/pip install opencv-python numpy matplotlib
-./.venv/bin/python run_gate.py
+.venv/bin/uvicorn webapp.server:app --port 8077
 ```
+
+*Simulated* streams the agent loop step by step over SSE, so each decision appears as
+it is made with the evidence beside it. *Upload clip* measures real footage and draws
+the automatically-chosen regions on a preview frame.
+
+## An upstream bug worth knowing about
+
+`cv2.phaseCorrelate` in OpenCV 5.0.0 **mutates both source arrays in place** — it
+multiplies each by the window. Code holding one array as a reference across calls
+decays it as `base × window^N`; with a Hanning window the usable aperture collapses
+after ~700 calls and **11% of frames return displacements up to ±92 px on a ±0.8 px
+signal**.
+
+Verified: observed base matched predicted `orig × window^N` to **7 significant
+figures** at N = 1, 2, 10, 100, 700. Two behaviours we had documented as physical
+limitations turned out to be this bug — 240 fps clips went from SNR 2.9 to **229**, and
+smooth surfaces from FAIL to PASS. Pinned by
+[`tests/test_phasecorrelate_mutation.py`](tests/test_phasecorrelate_mutation.py).
+
+## Layout
+
+```
+tremor/     measurement core + validation generators
+agent/      perception-decision-action loop, tool surface, MCP server
+bench/      COOL/Graviton benchmark harness with falsifiable provenance
+webapp/     FastAPI endpoint + single-page UI
+deploy/     Graviton + COOL deployment, one-shot benchmark runner
+docs/       architecture, thresholds and their empirical basis, MCP design
+tests/      regression tests
+```
+
+## Status
+
+Measurement core, agent, MCP surface, benchmark harness and web endpoint are built and
+evidenced. **Pending:** the Graviton/COOL benchmark run, web deployment, and validation
+against a real machine rather than a controlled target. Those are marked
+`[PENDING]` in the [technical report](REPORT.md) and contain no invented figures.
+
+Every threshold in the system is a measurement, not a guess —
+[`docs/THRESHOLDS.md`](docs/THRESHOLDS.md) records what was run and what it showed,
+including the results that went against us.

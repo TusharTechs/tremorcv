@@ -12,7 +12,7 @@ body{
   display:flex; flex-direction:column; overflow:hidden;
 }
 header{
-  display:flex; align-items:center; gap:16px; padding:12px 20px;
+  display:flex; align-items:center; gap:11px; padding:12px 20px;
   border-bottom:1px solid var(--line); background:var(--panel); flex:none;
 }
 .logo{font:700 20px/1 var(--mono); letter-spacing:.14em; color:var(--accent)}
