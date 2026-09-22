@@ -1,5 +1,9 @@
 # TREMOR — video vibration measurement
 
+**[Technical report](REPORT.md)** · **[Architecture](docs/architecture.mmd)** ·
+**[Thresholds and their empirical basis](docs/THRESHOLDS.md)** ·
+**[MCP surface](docs/MCP.md)** · **[Graviton runbook](deploy/README.md)**
+
 Measures machine vibration from ordinary video. Sub-pixel displacement via
 OpenCV 5 phase correlation, temporal spectrum, fault frequencies.
 
