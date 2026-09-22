@@ -12,6 +12,12 @@ run_machine_eval.py   realistic fault-signature evaluation
 analyze_video.py      measure a real video file
 run_bench.py          benchmark one environment -> results/<label>.json
 compare.py            merge results -> report tables
+agent/      perception-decision-action loop + MCP server
+run_agent.py          single agent run with full decision trace
+eval_agent.py         task effectiveness vs a single-shot ablation
+test_mcp.py           exercise the MCP tool surface, no client needed
+docs/THRESHOLDS.md    empirical basis for every threshold
+docs/MCP.md           MCP server and the two-orchestrator design
 ```
 
 ## Validated so far
@@ -22,6 +28,15 @@ compare.py            merge results -> report tables
   shutter + specular glare + H.264: **0.000 Hz error on 1x, 2x and 3x.**
 - Known limit: smooth/glossy surfaces fail (SNR 1.6 at 15% surface contrast).
 - Known limit: 30 fps caps measurement at 15 Hz (900 RPM); 240 fps -> 120 Hz.
+
+Agent task effectiveness (n=30), against a single-shot ablation:
+
+| | agent | single-shot |
+|---|---|---|
+| fault correct (all scenarios) | **63.3%** | 30.0% |
+| fault correct when it answered | **79.2%** | 30.0% |
+| escalated instead of guessing | 20.0% | 0.0% |
+| median shaft-frequency error | **0.000 Hz** | 3.250 Hz |
 
 ## Setup
 
