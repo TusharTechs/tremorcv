@@ -34,5 +34,13 @@ grep -q 'opencv-python-headless' deploy/webapp-userdata.sh \
 grep -q "import cv2; print('cv2 import OK'" deploy/webapp-userdata.sh \
   || { echo "FAIL: webapp-userdata.sh must verify cv2 imports before starting the service"; fail=1; }
 
+# The upload endpoint must never materialise a whole clip. A 606-frame 1080p video
+# is 5.03 GB as float32, which OOM-kills the service inside its cgroup and reaches
+# the browser as "Failed to fetch". Cost one deploy.
+grep -q 'measure_streaming' webapp/server.py \
+  || { echo "FAIL: /api/measure must use measure_streaming, not a full frame stack"; fail=1; }
+grep -q 'frames.append' webapp/server.py \
+  && { echo "FAIL: webapp/server.py still accumulates frames in memory"; fail=1; }
+
 [ $fail -eq 0 ] && echo "deploy scripts OK (syntax + empty-environment + headless-wheel safety)"
 exit $fail

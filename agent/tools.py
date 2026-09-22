@@ -254,3 +254,69 @@ def compare_baseline(baseline: dict, meas: Measurement, shaft_hz: float):
     worst = max((v["change_pct"] or 0) for v in out.values())
     return {"has_baseline": True, "harmonics": out, "max_increase_pct": worst,
             "trending_worse": worst > 50}
+
+
+def measure_streaming(path, fps, target_roi, static_roi, n_peaks=4, fmin=0.5):
+    """Measure a clip without ever holding it in memory.
+
+    The obvious implementation decodes every frame into a float32 array and passes
+    the stack around. For a 606-frame 1920x1080 clip that is 5.03 GB, which is fine
+    on a workstation and fatal inside a 1.7 GB cgroup -- the service is OOM-killed
+    mid-request and the browser reports "Failed to fetch".
+
+    Here each frame is decoded, both ROIs are correlated against their reference
+    immediately, and the frame is discarded. Peak memory is one frame plus two small
+    crops, independent of clip length.
+    """
+    cap = cv2.VideoCapture(path)
+    x1, y1, w1, h1 = target_roi
+    x2, y2, w2, h2 = static_roi
+    win1 = cv2.createHanningWindow((w1, h1), cv2.CV_32F)
+    win2 = cv2.createHanningWindow((w2, h2), cv2.CV_32F)
+    base1 = base2 = None
+    t_dx, t_rs, c_dx, c_rs = [], [], [], []
+
+    while True:
+        ok, fr = cap.read()
+        if not ok:
+            break
+        g = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        a = np.ascontiguousarray(g[y1:y1 + h1, x1:x1 + w1])
+        b = np.ascontiguousarray(g[y2:y2 + h2, x2:x2 + w2])
+        if base1 is None:
+            base1, base2 = a.copy(), b.copy()
+        # base.copy() per call: phaseCorrelate mutates its inputs (see roi_trace)
+        (dx, _), r = cv2.phaseCorrelate(base1.copy(), a, win1); t_dx.append(dx); t_rs.append(r)
+        (dx, _), r = cv2.phaseCorrelate(base2.copy(), b, win2); c_dx.append(dx); c_rs.append(r)
+    cap.release()
+
+    if len(t_dx) < 32:
+        raise ValueError(f"only {len(t_dx)} frames decoded; need at least 32")
+
+    tgt, rej_t = clean_trace(np.array(t_dx), np.array(t_rs))
+    cam, rej_c = clean_trace(np.array(c_dx), np.array(c_rs))
+    cam_rms, tgt_rms = float(np.std(cam)), float(np.std(tgt))
+    stabilized = cam_rms > STABILIZE_WHEN * tgt_rms
+    sig = tgt - cam if stabilized else tgt
+
+    f, A = spectrum(sig, fps)
+    band = f >= fmin
+    fb, Ab = f[band], A[band]
+    floor_global = float(np.median(Ab)) if Ab.size else 0.0
+    order = np.argsort(Ab)[::-1]
+    picked, peaks = [], []
+    for k in order:
+        if any(abs(fb[k] - p) < 3 * (f[1] - f[0]) for p in picked):
+            continue
+        picked.append(fb[k])
+        mask = np.ones_like(Ab, bool); mask[max(0, k - 3):k + 4] = False
+        fl = float(np.median(Ab[mask]))
+        peaks.append(Peak(float(fb[k]), float(Ab[k]), float(Ab[k] / fl) if fl else 0.0))
+        if len(peaks) >= n_peaks:
+            break
+
+    return Measurement(peaks=peaks, fps=float(fps), duration_s=len(t_dx) / fps,
+                       bin_hz=float(f[1]), stabilized=stabilized, cam_rms_px=cam_rms,
+                       signal_rms_px=float(np.std(sig)), nyquist_hz=fps / 2.0,
+                       reject_frac=max(rej_t, rej_c), noise_floor_px=floor_global,
+                       _freqs=f, _amps=A, _trace=sig)

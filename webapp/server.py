@@ -31,6 +31,7 @@ from agent.loop import (MAX_ACQUISITIONS, CONFIDENCE_TO_REPORT, FAST_FPS,
 HERE = Path(__file__).resolve().parent
 app = FastAPI(title="TREMOR", docs_url="/api/docs")
 MAX_UPLOAD_MB = int(os.environ.get("TREMOR_MAX_UPLOAD_MB", "200"))
+PROBE_FRAMES = int(os.environ.get("TREMOR_PROBE_FRAMES", "150"))
 
 
 @app.get("/api/health")
@@ -95,50 +96,72 @@ async def measure(file: UploadFile = File(...), fps: float = Form(0.0),
     suffix = Path(file.filename or "clip.mp4").suffix or ".mp4"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp.write(data); tmp.close()
+    del data
     try:
         cap = cv2.VideoCapture(tmp.name)
         src_fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        frames = []
-        while True:
+        n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        use_fps = fps or src_fps
+        if use_fps <= 0:
+            cap.release(); raise HTTPException(400, "frame rate unknown; pass fps explicitly")
+        if n < 32:
+            cap.release(); raise HTTPException(400, f"only {n} frames; need at least 32")
+
+        # Pass 1 -- a downsampled window is enough to LOCATE the regions. Decoding the
+        # whole clip at full resolution as float32 costs frames x w x h x 4 bytes:
+        # 5.03 GB for a 606-frame 1080p clip, which OOM-kills the service inside its
+        # 1.7 GB cgroup and surfaces in the browser as "Failed to fetch".
+        sc = min(1.0, 480.0 / max(w, 1))
+        probe = []
+        start = max(0, (n - PROBE_FRAMES) // 2)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+        for _ in range(min(PROBE_FRAMES, n)):
             ok, fr = cap.read()
             if not ok:
                 break
-            frames.append(cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY).astype(np.float32))
+            probe.append(cv2.resize(cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY), (0, 0),
+                                    fx=sc, fy=sc).astype(np.float32))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        ok, first = cap.read()
         cap.release()
-        if len(frames) < 32:
-            raise HTTPException(400, f"only {len(frames)} frames decoded; need >= 32")
-        use_fps = fps or src_fps
-        if use_fps <= 0:
-            raise HTTPException(400, "frame rate unknown; pass fps explicitly")
+        if not probe or not ok:
+            raise HTTPException(400, "could not decode frames from this file")
 
-        def parse(s, default):
-            if not s:
+        auto_t, auto_r, roi_diag = auto_rois(np.asarray(probe), use_fps)
+        del probe
+        auto_t = tuple(int(v / sc) for v in auto_t)
+        auto_r = tuple(int(v / sc) for v in auto_r)
+
+        def parse(spec, default):
+            if not spec:
                 return default
             try:
-                x, y, ww, hh = (int(v) for v in s.split(","))
+                x, y, ww, hh = (int(v) for v in spec.split(","))
                 return (x, y, ww, hh)
             except Exception:
-                raise HTTPException(400, f"bad ROI '{s}', expected x,y,w,h")
+                raise HTTPException(400, f"bad ROI '{spec}', expected x,y,w,h")
 
-        arr = np.asarray(frames)
-        auto_t, auto_r, roi_diag = auto_rois(arr, use_fps)
-        tgt = parse(target, auto_t)
-        ref = parse(static, auto_r)
+        tgt = parse(target, auto_t); ref = parse(static, auto_r)
         auto_used = not (target or static)
-        surface = T.assess_surface(arr, tgt)
-        meas = T.measure(arr, use_fps, tgt, ref)
+
+        first_g = cv2.cvtColor(first, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        surface = T.assess_surface(first_g[None, ...], tgt)
+
+        # Pass 2 -- stream, correlating each frame as it arrives and discarding it.
+        meas = T.measure_streaming(tmp.name, use_fps, tgt, ref)
         quality = T.assess_quality(meas, surface)
         shaft = T.estimate_shaft(meas)
+
         out = _payload(meas, surface, quality)
-        out.update({"source": {"filename": file.filename, "frames": len(frames),
+        out.update({"source": {"filename": file.filename, "frames": len(meas._trace),
                                "fps": round(use_fps, 3), "width": w, "height": h,
                                "target_roi": list(tgt), "static_roi": list(ref),
                                "rois_auto": auto_used},
                     "roi_diagnostics": roi_diag,
                     "shaft_hz": shaft,
-                    "preview": _preview(frames[0], tgt, ref),
+                    "preview": _preview(first_g, tgt, ref),
                     "diagnosis": T.diagnose(meas, shaft) if shaft else None})
         return JSONResponse(out)
     finally:
