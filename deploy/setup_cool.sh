@@ -21,6 +21,12 @@ if [ -z "$COOL_VENV" ]; then
 fi
 echo "COOL venv: $COOL_VENV"
 
+# COOL's activate prepends to $PYTHONPATH and $LD_LIBRARY_PATH without defaults.
+# Under `set -u` that is fatal ("PYTHONPATH: unbound variable"), which killed a run
+# before it measured anything. Define them empty rather than weakening -u.
+export PYTHONPATH="${PYTHONPATH:-}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
+
 # shellcheck disable=SC1090
 source "$COOL_VENV"
 python - <<'PY'
