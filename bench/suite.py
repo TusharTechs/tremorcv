@@ -110,15 +110,36 @@ def _worker(args):
     return e2e(seconds=secs)["realtime_factor"]
 
 
-def process_scaling(seconds=5, workers=None):
-    import os
-    from concurrent.futures import ProcessPoolExecutor
+def process_scaling(seconds=5, workers=None, timeout_s=600):
+    """
+    MUST use the 'spawn' start method. Linux defaults to 'fork', which copies only
+    the calling thread: OpenCV's internal thread pool holds locks, and a child that
+    inherits one held -- with no thread alive to release it -- deadlocks. Observed
+    on Graviton as 0% CPU for 15 minutes with the run apparently alive. macOS
+    defaults to spawn, so this passed locally and hung in the cloud.
+
+    cv2.setNumThreads(1) before the pool narrows the window further; the spawn
+    context is what actually fixes it. The timeout turns any residual hang into a
+    reported failure rather than a silently idling instance.
+    """
+    import os, multiprocessing as mp
+    from concurrent.futures import ProcessPoolExecutor, TimeoutError as FTimeout
+    cv2.setNumThreads(1)
+    ctx = mp.get_context("spawn")
     cpu = os.cpu_count() or 4
     ns = sorted({1, 2, 4, 8, cpu} & set(range(1, cpu + 1)))
     out = {}
     for n in ns:
-        with ProcessPoolExecutor(max_workers=n) as ex:
-            rf = list(ex.map(_worker, [(seconds,)] * n))
+        with ProcessPoolExecutor(max_workers=n, mp_context=ctx) as ex:
+            futs = [ex.submit(_worker, (seconds,)) for _ in range(n)]
+            try:
+                rf = [f.result(timeout=timeout_s) for f in futs]
+            except FTimeout:
+                for f in futs:
+                    f.cancel()
+                raise RuntimeError(
+                    f"process_scaling deadlocked at {n} workers "
+                    f"(no result in {timeout_s}s)")
         out[n] = {"aggregate_realtime_factor": float(sum(rf)),
                   "per_worker": float(sum(rf) / n),
                   "efficiency_vs_1x": None}

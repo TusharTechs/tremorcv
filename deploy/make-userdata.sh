@@ -14,7 +14,10 @@ REPO="${3:-https://github.com/TusharTechs/tremorcv/archive/refs/heads/main.tar.g
 
 cat <<UD
 #!/bin/bash
-exec > /var/log/tremor.log 2>&1
+# tee, not redirect: a plain redirect hides all progress from the EC2 console, and
+# with no SSH there is then no way to see where a run is stuck. /dev/console makes
+# it readable via get-console-output while the run is live.
+exec > >(tee /var/log/tremor.log > /dev/console) 2>&1
 set -x
 upload() {
   tar czf /tmp/results.tgz -C /home/ubuntu/tremorcv-main results 2>/dev/null || echo "NO RESULTS DIR"
@@ -22,6 +25,11 @@ upload() {
   curl -s -X PUT --upload-file /var/log/tremor.log "${LOG_URL}" -o /dev/null -w 'log upload: %{http_code}\n' || true
 }
 trap 'rc=\$?; echo "=== EXIT rc=\$rc ==="; upload; shutdown -h now' EXIT
+
+# Watchdog. A deadlock produced 0% CPU for 15 minutes with the run apparently
+# alive; without this the instance bills until someone notices.
+( sleep ${WATCHDOG_S:-1800}; echo "=== WATCHDOG FIRED: exceeded ${WATCHDOG_S:-1800}s ==="; \
+  upload; shutdown -h now ) &
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq && apt-get install -y -qq python3-venv || echo "apt warn"

@@ -193,6 +193,20 @@ string rather than rounding it.
 Probing cost about $0.02 and ten minutes — considerably less than waiting on an
 answer.
 
+**Deadlock: `fork` plus OpenCV's thread pool.** `process_scaling` used the default
+`ProcessPoolExecutor`. On Linux that means `fork`, which copies only the calling
+thread — OpenCV holds locks in its internal thread pool, and a child inheriting one
+held, with no thread alive to release it, deadlocks. Observed on Graviton as **0% CPU
+for 15 minutes** while the run appeared alive. macOS defaults to `spawn`, so this
+passed locally every time and hung only in the cloud.
+
+Fixed by forcing a `spawn` context, calling `cv2.setNumThreads(1)` before the pool,
+and adding a per-batch timeout so any residual hang is reported as a failure rather
+than idling. The cloud-init wrapper now also `tee`s to `/dev/console` (a plain
+redirect hid all progress from `get-console-output`, and with no SSH there was no
+other way to see where it stopped) and carries a watchdog that uploads and terminates
+after 30 minutes.
+
 ## Reproducing
 
 ```bash
