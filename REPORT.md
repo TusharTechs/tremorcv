@@ -451,15 +451,47 @@ figures in §7.3 came from the `c8g.2xlarge` benchmark. The provenance check ear
 keep by *declining* to claim COOL is the same property that made §7.3 trustworthy.
 
 Deployment is reproducible from `deploy/webapp-userdata.sh`, and
-`tests/test_deploy_scripts.sh` guards the two traps that cost a deploy each: the
-service must install `opencv-python-headless` (the full wheel links `libGL`, absent on
-servers, which crash-looped the unit 50 times), and it must verify `import cv2`
-succeeds before handing anything to systemd.
+`tests/test_deploy_scripts.sh` guards three traps that each cost a deploy to find:
+
+- The service must install `opencv-python-headless`. The full `opencv-python` wheel
+  links `libGL`, which a headless server does not have, so `import cv2` raised
+  `ImportError`, uvicorn exited, and `Restart=always` produced a 50-restart crash loop
+  that presented as a slow startup.
+- It must verify `import cv2` succeeds *before* handing anything to systemd, so a
+  failure is one legible line rather than an opaque restart loop.
+- `/api/measure` must stream. Decoding every frame of a 606-frame 1080p clip into
+  float32 costs **5.03 GB** against the service's 1.70 GB cgroup limit; the process
+  was OOM-killed mid-request and the browser reported "Failed to fetch". A
+  downsampled 150-frame window locates the regions, then each frame is correlated and
+  discarded: **peak RSS 5.03 GB → 0.54 GB**, with the measurement unchanged
+  (7.28 Hz, SNR 88.2).
+
+**Updates are applied in place, not by replacing the instance.** Replacement costs
+about five minutes of 404s, which during judging is indistinguishable from a broken
+submission — and already produced one false alarm, when a check through a VPN landed
+mid-redeploy and looked like the endpoint was unreachable from outside our network.
+`deploy/update.sh` pulls, reinstalls only when `requirements.txt` has actually changed,
+and restarts. Measured on a real change: **11 s end to end, service healthy 2 s after
+restart**, against ~320 s for a replacement.
+
+It will not restart into a build that cannot import: it runs
+`python -c "import cv2, webapp.server"` first and, on failure, resets to the previous
+commit and leaves the running process untouched. A bad push degrades to "not updated"
+rather than "site down" — worth having, given that three of our deployment failures
+were import-time and reproduced only on Linux.
+
+`deploy/remote.sh` drives this over **AWS Systems Manager rather than SSH**, which is
+a necessity rather than a preference: on the development network the ISP intercepts
+port 22, completes the TCP handshake on the destination's behalf and then sends no
+banner, so key exchange never completes. SSM requires no inbound port and no key, only
+the `tremor-ssm` instance profile carrying `AmazonSSMManagedInstanceCore`. The profile
+must be attached **at launch** — attached to an already-running instance the agent has
+already failed to obtain credentials and backed off, and never registers.
 
 **Known limitation:** the endpoint is HTTP, not HTTPS. There is no login and no
-personal data, but browsers will flag it as not secure and some corporate proxies
-block bare IP addresses. A domain name with automatic certificates would resolve both
-and is the remaining polish item.
+personal data, but browsers flag it as not secure and some corporate proxies block
+bare IP addresses. A domain name with automatic certificates would resolve both and is
+the remaining polish item.
 
 ---
 

@@ -207,6 +207,21 @@ redirect hid all progress from `get-console-output`, and with no SSH there was n
 other way to see where it stopped) and carries a watchdog that uploads and terminates
 after 30 minutes.
 
+**Four deployment failures, all Linux-only.** Each was correct on the development
+machine and fatal on the target, which is the pattern worth recording:
+
+| failure | cause | how it presented |
+|---|---|---|
+| benchmark hung at 0% CPU | `ProcessPoolExecutor` defaults to `fork` on Linux; OpenCV's thread pool holds locks a forked child inherits held | apparently alive, 15 min of flat 0% CPU |
+| baseline aborted | cloud-init runs user-data as root with no `HOME`, fatal under `set -u` | run died before the second leg |
+| endpoint crash-looped | `opencv-python` links `libGL`, absent on servers | `active` then restarting, looked like slow startup |
+| uploads failed | every frame decoded to float32: 5.03 GB against a 1.70 GB cgroup | "Failed to fetch" in the browser |
+
+macOS defaults to `spawn`, provides `HOME`, ships `libGL`, and had the RAM to absorb
+5 GB. `tests/test_deploy_scripts.sh` now runs the deploy scripts under `env -i` with
+`set -u` and asserts the headless wheel, the pre-flight import check and the streaming
+endpoint, so this class is caught locally rather than on a billing instance.
+
 ## Reproducing
 
 ```bash
