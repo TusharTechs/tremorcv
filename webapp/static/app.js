@@ -138,10 +138,15 @@ function renderStep(ev) {
   }
   $("#steps").appendChild(el);
   el.scrollIntoView({ behavior: "smooth", block: "end" });
+  if (ev.type === "step") $("#srStatus").textContent =
+    `Step ${ev.n}: ${ev.decision.replace("_", " ")}. ${ev.why}`;
 }
 
 function renderVerdict(ev) {
   const d = ev.diagnosis, ok = ev.decision === "report";
+  $("#srStatus").textContent = ok
+    ? `Diagnosis: ${d.fault.replace(/_/g, " ")}, confidence ${fmt(d.confidence)}, after ${ev.acquisitions} acquisitions.`
+    : `Escalated to a human. ${ev.reason || "Measurement not trustworthy."}`;
   const correct = d && ev.truth && d.fault === ev.truth.fault;
   $("#verdict").innerHTML = `<div class="verdict ${ev.decision}">
     <div class="lab">${ok ? "diagnosis" : "escalated to a human"}</div>
@@ -156,33 +161,85 @@ function renderVerdict(ev) {
 
 /* ---------- custom select (native <select> cannot theme its open list) ------- */
 function makeSelect(host, opts, value, onPick) {
+  // A native <select> is keyboard and screen-reader accessible for free; replacing it
+  // with divs for theming means re-implementing that, not discarding it. This follows
+  // the WAI-ARIA listbox pattern: roles, aria-expanded/activedescendant, and arrow /
+  // Home / End / Escape / Enter handling.
+  const id = host.id + "-lb";
   const cur = () => opts.find(o => o.v === host.dataset.v) || opts[0];
   host.dataset.v = value;
-  host.innerHTML = `<button type="button" class="sel-btn"><span class="val"></span><span class="chev"></span></button>
-    <div class="sel-list" hidden></div>`;
+  host.innerHTML = `<button type="button" class="sel-btn" aria-haspopup="listbox"
+      aria-expanded="false" aria-controls="${id}"><span class="val"></span><span class="chev" aria-hidden="true"></span></button>
+    <div class="sel-list" id="${id}" role="listbox" tabindex="-1" hidden></div>`;
   const btn = host.querySelector(".sel-btn"), list = host.querySelector(".sel-list");
+  list.innerHTML = opts.map((o, i) =>
+    `<div class="sel-opt" id="${id}-${i}" role="option" aria-selected="false" data-v="${o.v}">
+       <span class="tick" aria-hidden="true"></span><span>${o.label}</span>${
+       o.sub ? `<span class="sub">${o.sub}</span>` : ""}</div>`).join("");
+  const items = [...list.querySelectorAll(".sel-opt")];
+  let active = Math.max(0, opts.findIndex(o => o.v === value));
+
   const paint = () => { host.querySelector(".val").textContent = cur().label; };
-  list.innerHTML = opts.map(o =>
-    `<div class="sel-opt" data-v="${o.v}"><span class="tick"></span><span>${o.label}</span>${
-      o.sub ? `<span class="sub">${o.sub}</span>` : ""}</div>`).join("");
-  const sync = () => list.querySelectorAll(".sel-opt").forEach(el => {
+  const sync = () => items.forEach((el, i) => {
     const on = el.dataset.v === host.dataset.v;
     el.classList.toggle("sel-on", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
+    el.classList.toggle("sel-active", i === active);
     el.querySelector(".tick").textContent = on ? "\u2713" : "";
   });
-  const close = () => { list.hidden = true; host.classList.remove("open"); };
-  btn.onclick = e => {
-    e.stopPropagation();
-    document.querySelectorAll(".sel.open").forEach(s => s !== host && (s.classList.remove("open"),
-      s.querySelector(".sel-list").hidden = true));
-    list.hidden = !list.hidden; host.classList.toggle("open", !list.hidden); sync();
+  const open = () => {
+    document.querySelectorAll(".sel.open").forEach(s => s !== host && closeOne(s));
+    list.hidden = false; host.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
+    active = Math.max(0, opts.findIndex(o => o.v === host.dataset.v));
+    sync(); list.setAttribute("aria-activedescendant", items[active].id);
+    items[active].scrollIntoView({ block: "nearest" });
   };
+  const close = (focus) => {
+    list.hidden = true; host.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
+    list.removeAttribute("aria-activedescendant");
+    if (focus) btn.focus();
+  };
+  const closeOne = s => { s.classList.remove("open");
+    s.querySelector(".sel-list").hidden = true;
+    s.querySelector(".sel-btn").setAttribute("aria-expanded", "false"); };
+  const pick = i => {
+    host.dataset.v = opts[i].v; active = i; paint(); sync(); close(true);
+    onPick && onPick(opts[i].v);
+  };
+  const move = d => {
+    active = Math.min(opts.length - 1, Math.max(0, active + d));
+    sync(); list.setAttribute("aria-activedescendant", items[active].id);
+    items[active].scrollIntoView({ block: "nearest" });
+  };
+
+  btn.onclick = e => { e.stopPropagation(); list.hidden ? open() : close(); };
+  btn.onkeydown = e => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); open(); }
+  };
+  list.onkeydown = e => {
+    switch (e.key) {
+      case "ArrowDown": e.preventDefault(); move(1); break;
+      case "ArrowUp":   e.preventDefault(); move(-1); break;
+      case "Home":      e.preventDefault(); active = 0; move(0); break;
+      case "End":       e.preventDefault(); active = opts.length - 1; move(0); break;
+      case "Enter": case " ": e.preventDefault(); pick(active); break;
+      case "Escape":    e.preventDefault(); close(true); break;
+      case "Tab":       close(false); break;
+    }
+  };
+  // keydown on the list only fires when it holds focus; move focus there on open
+  const _open = open;
+  btn.addEventListener("click", () => { if (!list.hidden) list.focus(); });
+  btn.addEventListener("keydown", e => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) setTimeout(() => list.focus(), 0);
+  });
   list.onclick = e => {
     const o = e.target.closest(".sel-opt"); if (!o) return;
-    host.dataset.v = o.dataset.v; paint(); sync(); close(); onPick && onPick(o.dataset.v);
+    pick(items.indexOf(o));
   };
-  document.addEventListener("click", close);
-  host.addEventListener("keydown", e => e.key === "Escape" && close());
+  document.addEventListener("click", () => close(false));
   paint(); sync();
   return { get value() { return host.dataset.v; } };
 }
@@ -248,6 +305,10 @@ $("#file").onchange = e => {
   b.classList.toggle("has", !!f);
   b.querySelector(".nm").textContent = f ? f.name : "Choose a video";
   b.querySelector(".sz").textContent = f ? (f.size / 1048576).toFixed(1) + " MB" : "";
+  // announce to assistive tech: a styled <label> gives no spoken feedback on its own
+  $("#fileStatus").textContent = f
+    ? `Selected ${f.name}, ${(f.size / 1048576).toFixed(1)} megabytes`
+    : "No file selected";
 };
 
 $("#analyze").onclick = async () => {

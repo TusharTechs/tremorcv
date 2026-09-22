@@ -593,6 +593,15 @@ in an average.
 attention and trigger a closer look, not to replace a certified analyst for
 safety-critical equipment. The interface shows confidence and evidence on every result.
 
+**Accessibility.** The interface replaces two native form controls for theming, which
+removes keyboard and screen-reader support that browsers provide for free; both were
+re-implemented rather than dropped. The select follows the WAI-ARIA listbox pattern
+(roles, `aria-expanded`, `aria-activedescendant`, arrow/Home/End/Enter/Escape, focus
+return); the file control announces its selection through a live region; the streamed
+agent trace announces each decision as it lands; there is a skip link, visible focus
+rings, and `prefers-reduced-motion` and `prefers-contrast` are honoured. No
+information is conveyed by colour alone.
+
 **Privacy.** The system measures machines, not people. Clips are of equipment, uploaded
 deliberately rather than captured continuously; there is no always-on recording, no
 identity inference and no person-tracking anywhere in the pipeline. Where footage might
@@ -631,3 +640,16 @@ Dependencies are pinned to exact versions. `requirements-cool.txt` deliberately 
 `opencv-python` so it cannot shadow the COOL build on the AMI.
 
 All evaluation uses fixed seeds; the figures above reproduce exactly.
+
+`pytest` covers the measurement core, the agent tool surface, the decision loop and
+the web endpoint — 30 tests including the boundaries that cost a deployment to find:
+that `cv2.phaseCorrelate` mutates its inputs, that the shaft estimator returns the
+fundamental rather than a harmonic, that `diagnose` declines below the noise floor,
+that the loop re-acquires rather than guessing, and that streamed and in-memory
+measurement agree.
+
+`tests/test_deploy_scripts.sh` runs the deployment scripts under `env -i` with
+`set -u` — the environment cloud-init actually provides — and asserts the headless
+OpenCV wheel, the pre-flight import check and the streaming upload path.
+
+Released under the MIT licence.

@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 </head><body>
+<a href="#main" class="skip">Skip to results</a>
 
 <header>
   <img src="/favicon.svg" width="26" height="26" alt="">
@@ -16,13 +17,16 @@
 </header>
 
 <main>
+  <!-- assistive-tech announcements for the streamed agent trace -->
+  <p id="srStatus" class="sr-only" role="status" aria-live="polite"></p>
+  <p id="fileStatus" class="sr-only" role="status" aria-live="polite"></p>
   <aside>
-    <div class="tabs">
-      <button id="tabSim" class="sel">Simulated</button>
-      <button id="tabUp">Upload clip</button>
+    <div class="tabs" role="tablist" aria-label="Input mode">
+      <button id="tabSim" class="sel" role="tab" aria-selected="true" aria-controls="paneSim">Simulated</button>
+      <button id="tabUp" role="tab" aria-selected="false" aria-controls="paneUp">Upload clip</button>
     </div>
 
-    <section id="paneSim">
+    <section id="paneSim" role="tabpanel" aria-labelledby="tabSim">
       <h2>Machine under test</h2>
       <div class="field"><label>Hidden fault (unknown to the agent)</label>
         <div class="sel" id="faultSel"></div></div>
@@ -40,10 +44,10 @@
         first clip is usable. It has to find out, and change what it asks for next.</p>
     </section>
 
-    <section id="paneUp" hidden>
+    <section id="paneUp" role="tabpanel" aria-labelledby="tabUp" hidden>
       <h2>Real footage</h2>
       <div class="field"><label>Video file</label>
-        <input type="file" id="file" accept="video/*">
+        <input type="file" id="file" accept="video/*" aria-describedby="fileStatus">
         <label class="file-btn" id="fileBtn" for="file">
           <span class="ico">&#8593;</span><span class="nm">Choose a video</span><span class="sz"></span>
         </label></div>
@@ -60,7 +64,7 @@
     </section>
   </aside>
 
-  <div class="center">
+  <div class="center" id="main" tabindex="-1">
     <div class="charts">
       <div class="card" id="previewCard" hidden>
         <h3>What the system chose to measure</h3>
@@ -70,12 +74,13 @@
       <div class="card">
         <h3>Displacement spectrum</h3>
         <div class="sub" id="specSub">amplitude in pixels vs frequency</div>
-        <canvas id="spec" data-h="250"></canvas>
+        <canvas id="spec" data-h="250" role="img" aria-label="Displacement spectrum chart"></canvas>
+        <p id="specAlt" class="sr-only"></p>
       </div>
       <div class="card">
         <h3>Subpixel displacement</h3>
         <div class="sub" id="traceSub">after camera motion cancellation</div>
-        <canvas id="trace" data-h="110"></canvas>
+        <canvas id="trace" data-h="110" role="img" aria-label="Sub pixel displacement over time"></canvas>
       </div>
       <div class="stats" id="stats"></div>
     </div>
@@ -87,7 +92,7 @@
       <div class="hint" id="traceHint">Every decision below is driven by a measurement,
         not a script.</div>
     </div>
-    <div class="steps" id="steps"></div>
+    <div class="steps" id="steps" aria-label="Agent decision steps"></div>
     <div id="verdict"></div>
   </div>
 </main>
