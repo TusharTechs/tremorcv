@@ -1,4 +1,5 @@
 const $ = s => document.querySelector(s);
+const SEL = {};
 const fmt = (v, n = 2) => (v == null || Number.isNaN(v)) ? "—" : (+v).toFixed(n);
 
 /* ---------- canvas plotting (no chart library: zero CDN deps, exact control) ---- */
@@ -153,6 +154,39 @@ function renderVerdict(ev) {
   </div>`;
 }
 
+/* ---------- custom select (native <select> cannot theme its open list) ------- */
+function makeSelect(host, opts, value, onPick) {
+  const cur = () => opts.find(o => o.v === host.dataset.v) || opts[0];
+  host.dataset.v = value;
+  host.innerHTML = `<button type="button" class="sel-btn"><span class="val"></span><span class="chev"></span></button>
+    <div class="sel-list" hidden></div>`;
+  const btn = host.querySelector(".sel-btn"), list = host.querySelector(".sel-list");
+  const paint = () => { host.querySelector(".val").textContent = cur().label; };
+  list.innerHTML = opts.map(o =>
+    `<div class="sel-opt" data-v="${o.v}"><span class="tick"></span><span>${o.label}</span>${
+      o.sub ? `<span class="sub">${o.sub}</span>` : ""}</div>`).join("");
+  const sync = () => list.querySelectorAll(".sel-opt").forEach(el => {
+    const on = el.dataset.v === host.dataset.v;
+    el.classList.toggle("sel-on", on);
+    el.querySelector(".tick").textContent = on ? "\u2713" : "";
+  });
+  const close = () => { list.hidden = true; host.classList.remove("open"); };
+  btn.onclick = e => {
+    e.stopPropagation();
+    document.querySelectorAll(".sel.open").forEach(s => s !== host && (s.classList.remove("open"),
+      s.querySelector(".sel-list").hidden = true));
+    list.hidden = !list.hidden; host.classList.toggle("open", !list.hidden); sync();
+  };
+  list.onclick = e => {
+    const o = e.target.closest(".sel-opt"); if (!o) return;
+    host.dataset.v = o.dataset.v; paint(); sync(); close(); onPick && onPick(o.dataset.v);
+  };
+  document.addEventListener("click", close);
+  host.addEventListener("keydown", e => e.key === "Escape" && close());
+  paint(); sync();
+  return { get value() { return host.dataset.v; } };
+}
+
 /* ---------- wiring ---------------------------------------------------------- */
 let es = null;
 async function boot() {
@@ -164,10 +198,11 @@ async function boot() {
     if (h.cool_verified) $("#coolPill").classList.add("on");
   } catch (e) { $("#cvPill").textContent = "backend offline"; }
   const cfg = await (await fetch("/api/config")).json();
-  $("#fault").innerHTML = cfg.faults.map(f =>
-    `<option value="${f}"${f === "misalignment" ? " selected" : ""}>${f.replace(/_/g, " ")}</option>`).join("");
-  $("#aim").innerHTML = Object.entries(cfg.aim_points).map(([k, v]) =>
-    `<option value="${k}"${k === "housing" ? " selected" : ""}>${k.replace(/_/g, " ")} (contrast ${v})</option>`).join("");
+  SEL.fault = makeSelect($("#faultSel"),
+    cfg.faults.map(f => ({ v: f, label: f.replace(/_/g, " ") })), "misalignment");
+  SEL.aim = makeSelect($("#aimSel"),
+    Object.entries(cfg.aim_points).map(([k, v]) =>
+      ({ v: k, label: k.replace(/_/g, " "), sub: "contrast " + v })), "housing");
 }
 
 $("#shaft").oninput = e => {
@@ -184,8 +219,8 @@ $("#run").onclick = () => {
   $("#previewCard").hidden = true;
   $("#run").disabled = true; $("#run").textContent = "Agent running…";
   const q = new URLSearchParams({
-    shaft_hz: $("#shaft").value, fault: $("#fault").value,
-    severity_px: $("#sev").value, start_aim: $("#aim").value,
+    shaft_hz: $("#shaft").value, fault: SEL.fault.value,
+    severity_px: $("#sev").value, start_aim: SEL.aim.value,
   });
   es = new EventSource("/api/agent/stream?" + q);
   es.onmessage = m => {
@@ -206,6 +241,13 @@ $("#run").onclick = () => {
     if (es) es.close(); es = null;
     $("#run").disabled = false; $("#run").textContent = "Run agent";
   };
+};
+
+$("#file").onchange = e => {
+  const f = e.target.files[0], b = $("#fileBtn");
+  b.classList.toggle("has", !!f);
+  b.querySelector(".nm").textContent = f ? f.name : "Choose a video";
+  b.querySelector(".sz").textContent = f ? (f.size / 1048576).toFixed(1) + " MB" : "";
 };
 
 $("#analyze").onclick = async () => {

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TREMOR — agentic vibration intelligence</title>
+<title>TREMOR · agentic vibration intelligence</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 </head><body>
@@ -11,8 +11,8 @@
   <span class="logo">TREMOR</span>
   <span class="tag">machine vibration from ordinary video · OpenCV 5</span>
   <span class="sp"></span>
-  <span class="pill" id="cvPill">opencv —</span>
-  <span class="pill" id="coolPill">cool —</span>
+  <span class="pill" id="cvPill">opencv</span>
+  <span class="pill" id="coolPill">cool</span>
 </header>
 
 <main>
@@ -25,33 +25,37 @@
     <section id="paneSim">
       <h2>Machine under test</h2>
       <div class="field"><label>Hidden fault (unknown to the agent)</label>
-        <select id="fault"></select></div>
-      <div class="field"><label>Shaft speed — <b id="shaftV">4.3</b> Hz
+        <div class="sel" id="faultSel"></div></div>
+      <div class="field"><label>Shaft speed <b id="shaftV">4.3</b> Hz
           (<span id="rpmV">258</span> RPM)</label>
         <input type="range" id="shaft" min="2" max="12" step="0.1" value="4.3"></div>
-      <div class="field"><label>Severity — <b id="sevV">0.60</b> px</label>
+      <div class="field"><label>Severity <b id="sevV">0.60</b> px</label>
         <input type="range" id="sev" min="0.1" max="1.0" step="0.05" value="0.6"></div>
       <div class="field"><label>Operator first aims at</label>
-        <select id="aim"></select></div>
+        <div class="sel" id="aimSel"></div></div>
       <button id="run">Run agent</button>
       <div class="err" id="simErr"></div>
       <hr>
       <p class="hint">The agent is not told the fault, the shaft speed, or whether the
-        first clip is usable. It has to find out — and change what it asks for next.</p>
+        first clip is usable. It has to find out, and change what it asks for next.</p>
     </section>
 
     <section id="paneUp" hidden>
       <h2>Real footage</h2>
-      <div class="field"><label>Video file</label><input type="file" id="file" accept="video/*"></div>
+      <div class="field"><label>Video file</label>
+        <input type="file" id="file" accept="video/*">
+        <label class="file-btn" id="fileBtn" for="file">
+          <span class="ico">&#8593;</span><span class="nm">Choose a video</span><span class="sz"></span>
+        </label></div>
       <div class="field"><label>Frame rate (0 = read from file)</label>
         <input type="number" id="fps" value="0" min="0" step="1"></div>
       <button id="analyze">Measure</button>
       <div class="err" id="upErr"></div>
       <hr>
       <p class="hint">The vibrating region and a rigid reference are located
-        automatically: hand motion is almost all below 1&nbsp;Hz, so high-pass
+        automatically: hand motion is almost all below 1&nbsp;Hz, so highpass
         filtering each pixel in time separates real vibration from camera shake.
-        Hold the phone as steady as is convenient — 72&nbsp;px of hand movement
+        Hold the phone as steady as is convenient. 72&nbsp;px of hand movement
         measured fine on a real clip.</p>
     </section>
   </aside>
@@ -69,8 +73,8 @@
         <canvas id="spec" data-h="250"></canvas>
       </div>
       <div class="card">
-        <h3>Sub-pixel displacement</h3>
-        <div class="sub" id="traceSub">after camera-motion cancellation</div>
+        <h3>Subpixel displacement</h3>
+        <div class="sub" id="traceSub">after camera motion cancellation</div>
         <canvas id="trace" data-h="110"></canvas>
       </div>
       <div class="stats" id="stats"></div>
