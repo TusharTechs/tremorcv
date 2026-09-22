@@ -1,61 +1,90 @@
-# Running the TREMOR benchmark on AWS Graviton
+# Graviton + COOL benchmark runbook
 
-Goal: three comparable measurements of the **same** workload.
+Goal: three comparable measurements of the **same** workload, so the library is the
+only variable.
 
 | label | where | library |
 |---|---|---|
-| `graviton-cool` | Graviton (m8g.4xlarge), COOL AMI | COOL (KleidiCV-optimised OpenCV 5.0) |
-| `graviton-stock` | **same instance**, separate venv | stock `opencv-python` 5.0.0 |
-| `x86-stock` | c7i.2xlarge | stock `opencv-python` 5.0.0 |
+| `graviton-cool` | c8g.2xlarge, COOL AMI | COOL (KleidiCV-optimised OpenCV 5.0) |
+| `graviton-stock` | **same instance**, separate venv | stock `opencv-python-headless` 5.0.0 |
 
-Running stock and COOL on the *same* instance isolates the library as the only
-variable. The x86 run exists for the cost argument, not the speed argument.
+Running both on the same instance isolates the library from silicon, kernel and
+clip. Budget roughly **20 minutes** of instance time and **under $1**.
+
+## 0. Before launching
+
+- [ ] AWS budget exists (`tremor-opencv-competition`, $25, alerts at 20/40/100%)
+- [ ] COOL subscription active — the 7-day software-charge trial started on subscribe
+- [ ] Know your public IP for the security group
 
 ## 1. Launch
 
-1. AWS Marketplace → **Cloud Optimized OpenCV for AWS Graviton4**
-   (`prodview-fdvbfiewzuehs`). 7-day free trial; software cost on m8g.4xlarge is
-   $0.04/hr on top of EC2.
-2. Subscribe → Launch → instance type **m8g.4xlarge** (vendor-recommended).
-3. Security group: SSH from your IP only.
-4. `ssh -i key.pem ubuntu@<ip>`
+[Marketplace console](https://console.aws.amazon.com/marketplace/home#/subscriptions)
+→ Cloud Optimized OpenCV for AWS Graviton4 → **Launch**
 
-## 2. Benchmark
+- Instance type **`c8g.2xlarge`** (8 vCPU, $0.319/hr + $0.02/hr COOL).
+  Not the vendor-recommended m8g.4xlarge: our own process-scaling data shows parallel
+  efficiency falling to 60% at 4 workers, so 16 vCPUs would be idle at double the cost.
+- Region **us-east-1** (matches `bench/pricing.json`)
+- Key pair: create and download
+- Security group: **SSH (22) from My IP** only
+- Storage: default
+
+## 2. Ship the code
+
+No GitHub remote needed:
 
 ```bash
-git clone <your repo> tremor && cd tremor
-
-# COOL
-./deploy/setup_cool.sh
-source /opt/cool/venvs/python_3.12/bin/activate
-python run_bench.py --label graviton-cool --instance m8g.4xlarge
-
-# stock, same box
-./deploy/setup_stock.sh
-source ~/stock-venv/bin/activate
-python run_bench.py --label graviton-stock --instance m8g.4xlarge
+tar czf - --exclude=.venv --exclude=.git --exclude='*.MOV' -C ~ tremor \
+  | ssh -i <key.pem> ubuntu@<ip> 'tar xzf -'
 ```
 
-Copy `results/*.json` back, then `python compare.py` for the report tables.
+(For the submission you will want a judge-accessible repo anyway — a **private**
+GitHub repo is fine, the rules do not require open source.)
 
-## 3. Before publishing any cost number
+## 3. Run
 
-`bench/pricing.json` ships EC2 rates as `null` with `_verified: false`, and
-`compare.py` withholds cost rather than printing a guess. Fill in the real
-on-demand rates from <https://aws.amazon.com/ec2/pricing/on-demand/> for your
-region and set `_verified: true`.
+```bash
+ssh -i <key.pem> ubuntu@<ip>
+cd ~/tremor
+./deploy/run_all.sh c8g.2xlarge
+```
 
-## Notes that shape the architecture
+That runs COOL, then the stock baseline on the same box, then writes
+`results/report.md` and `/tmp/tremor-results.tgz`.
 
-- **`phaseCorrelate` is ~100% of the hot path** (2.2 ms/call vs <0.25 ms for every
-  other op). Whatever COOL does to it determines the end-to-end number.
-- **Thread scaling is flat** — it does not parallelise internally. Throughput comes
-  from N single-threaded worker processes, one per vCPU. Workers call
-  `cv2.setNumThreads(1)` to avoid oversubscription.
-- On an 8-core Apple M-series, process scaling hit 36% efficiency at 8 workers
-  (heterogeneous P/E cores). Graviton4 has uniform cores, so **expect better
-  linearity** — that is a prediction this harness will confirm or refute.
+**It aborts before collecting any data if `cool_verified` is False.** All three
+conditions must hold — Arm silicon, a Graviton instance type, and `/opt/cool`
+present — so you cannot accidentally publish stock numbers under a COOL label.
 
-## Cost note
+## 4. Collect and shut down
 
-Shut the instance down when idle. The COOL AMI bills hourly while running.
+```bash
+scp -i <key.pem> ubuntu@<ip>:/tmp/tremor-results.tgz .
+```
+
+Then **terminate the instance**. Also check: EBS volume deleted, no Elastic IP held.
+
+## Design notes
+
+- **`setup_cool.sh` installs nothing.** The benchmark needs only cv2 and numpy, both
+  already on the AMI. `pip install` into `/opt/cool` would risk an ABI mismatch with
+  the numpy that COOL's cv2 was built against — breaking the thing being measured.
+- **The stock baseline uses the headless wheel.** The server AMI has no libGL and the
+  full wheel would fail to import. Only highgui differs; every imgproc/core function
+  benchmarked is identical and no GUI is used.
+- **`compare.py` is called with explicit arguments** so stock is the baseline. Left to
+  glob alphabetically it would pick `graviton-cool` first and invert every speedup.
+- **Fill in EC2 prices before quoting cost.** `bench/pricing.json` ships them
+  `_verified: false` (sourced from Vantage, not the AWS pricing API) and `compare.py`
+  prints "n/a" rather than a guess.
+
+## What the results should show
+
+- `phaseCorrelate` is ~100% of the hot path (3.05 ms/call vs <0.26 ms for everything
+  else), so whatever COOL does to it drives the end-to-end number.
+- Thread scaling is flat — it does not parallelise internally. Throughput comes from
+  N single-threaded worker processes, one per vCPU.
+- On an 8-core Apple M-series, process scaling hit 60% efficiency at 4 workers and 39%
+  at 8, likely from heterogeneous P/E cores. **Graviton4 has uniform cores, so expect
+  better linearity — this run confirms or refutes that prediction.**
