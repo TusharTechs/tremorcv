@@ -50,73 +50,32 @@ back for a better clip when it cannot, and declining to answer when it still can
 
 ```mermaid
 flowchart TB
-  CAM["Phone or fixed camera<br/>handheld is fine, 72 px of hand motion measured OK<br/>30 / 60 / 240 fps"]
-
-  subgraph ING["AWS · INGEST"]
-    direction LR
-    S3R[("S3<br/>raw clips")]
-    LAM["Lambda<br/>on s3:ObjectCreated"]
-    SQS["SQS<br/>job queue"]
-    S3R --> LAM
-    LAM --> SQS
+  CAM["Camera · 30 / 60 / 240 fps"]
+  ING["AWS · Ingest<br/>S3 → Lambda → SQS"]
+  subgraph CMP["OpenCV 5 · AWS Graviton4 + COOL"]
+    P1["Locate vibration · phaseCorrelate"]
+    P2["Reject outliers · cancel camera motion"]
+    P3["cv2.dft spectrum → harmonics → fault"]
+    P1 --> P2 --> P3
   end
-
-  subgraph CMP["AWS · EC2 c8g.2xlarge Graviton4 · COOL AMI, OpenCV 5.0 + Arm KleidiCV"]
-    direction TB
-    W["N single-threaded workers, one per vCPU<br/>phaseCorrelate does not parallelise internally,<br/>so throughput is process-level"]
-    subgraph CV["OpenCV 5 pipeline — the claimed core workload"]
-      direction TB
-      P1["1 · Locate what is vibrating<br/>temporal high-pass, boxFilter energy + texture"]
-      P2["2 · Sub-pixel displacement<br/>cv2.phaseCorrelate, createHanningWindow"]
-      P3["3 · Reject correlation failures<br/>MAD + correlation response"]
-      P4["4 · Cancel camera motion<br/>static-reference subtraction, adaptive"]
-      P5["5 · Temporal spectrum<br/>Hann window, cv2.dft, amplitude in px"]
-      P6["6 · Shaft rate and fault<br/>harmonic comb, noise-floor gated 1x / 2x / 3x"]
-      P1 --> P2
-      P2 --> P3
-      P3 --> P4
-      P4 --> P5
-      P5 --> P6
-    end
-    W -.-> P1
-  end
-
-  subgraph ST["AWS · STATE"]
-    direction LR
-    DDB[("DynamoDB<br/>per-asset baselines")]
-    S3E[("S3<br/>evidence + previews")]
-    CW["CloudWatch<br/>decision trace"]
-  end
-
-  subgraph AG["DECIDE"]
-    direction LR
-    POL{{"Agent policy<br/>deterministic reference, no API key<br/>or any MCP client"}}
-    TOOL["assess_quality · estimate_shaft<br/>diagnose · compare_baseline"]
-    POL --> TOOL
-  end
-
+  ST["AWS · State<br/>DynamoDB baselines · S3 evidence · CloudWatch trace"]
+  AG["Agent · deterministic policy or MCP<br/>OpenCV 5 tool surface"]
   VER{"Verdict"}
-  UI["Web endpoint<br/>FastAPI + SSE, live decision trace"]
-  HUM["Human<br/>escalated with evidence when<br/>confidence below 0.55, 18.8% of runs"]
-
-  CAM --> S3R
-  SQS --> P1
-  P6 --> DDB
-  P6 --> S3E
-  DDB --> POL
-  TOOL --> VER
-  TOOL -.-> CW
+  UI["Web endpoint"]
+  HUM["Human · confidence &lt; 0.55"]
+  CAM --> ING --> P1
+  P3 --> AG --> VER
+  P3 -.-> ST
   VER -->|report| UI
   VER -->|escalate| HUM
-  VER ==>|"re-acquire: the vision result changes what gets measured next"| CAM
-
+  VER ==>|re-acquire| CAM
   classDef aws fill:#fff7ed,stroke:#f59e0b,stroke-width:1.5px,color:#0f172a
   classDef cv fill:#f0fdfa,stroke:#14b8a6,stroke-width:1.5px,color:#0f172a
   classDef ag fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#0f172a
   classDef pl fill:#ffffff,stroke:#cbd5e1,color:#0f172a
-  class S3R,LAM,SQS,DDB,S3E,CW aws
-  class P1,P2,P3,P4,P5,P6,W cv
-  class POL,TOOL,VER ag
+  class ING,ST aws
+  class P1,P2,P3 cv
+  class AG,VER ag
   class CAM,UI,HUM pl
 ```
 
