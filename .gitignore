@@ -10,3 +10,4 @@ out/*.png
 # video intermediates: regenerate with video/record_demo.py
 video/raw/*.webm
 video/work/
+video/vo/
