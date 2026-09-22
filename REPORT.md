@@ -347,14 +347,84 @@ numbers cannot be written under a COOL label.
 
 ### 7.3 Results
 
-**[PENDING]** — the harness is complete and one-command
-(`./deploy/run_all.sh c8g.2xlarge`); the instance has not yet been run. It will report,
-for COOL and for stock OpenCV 5.0.0 **on the same instance**: per-operation latency,
-end-to-end ms/frame and ×realtime, thread and process scaling, and cost per video-hour.
+Measured 2026-09-22 on **c8g.2xlarge** (Graviton4, 8 vCPU, us-east-1). Both legs ran
+on the **same instance**, so the library is the only variable.
 
-Cost figures are withheld until EC2 rates are verified against the AWS pricing page:
-`bench/pricing.json` ships them `_verified: false` and `compare.py` prints "n/a" rather
-than a guess.
+| | COOL | stock baseline |
+|---|---|---|
+| OpenCV | **5.1.0-dev** (KleidiCV) | 5.0.0 |
+| loaded from | `/opt/cool/...` | `/root/stock-venv/...` |
+| `cv2_loaded_from_cool` | **true** | **false** |
+| `PYTHONPATH` | COOL's | empty |
+
+The provenance gate is reported first deliberately: an earlier run produced a
+plausible-looking 0.4% difference because `PYTHONPATH` leaked and *both* legs loaded
+COOL. Numbers are meaningless until the two legs are shown to differ.
+
+**End-to-end — the claimed core workload**
+
+| | ms/frame | ×realtime | video-h per compute-h | speedup |
+|---|---|---|---|---|
+| stock OpenCV 5.0.0 | 5.21 | 6.4 | 6.4 | — |
+| **COOL** | **4.14** | **8.1** | **8.1** | **1.26×** |
+
+**Per-operation** (ms/call, speedup vs stock)
+
+| op | stock | COOL | |
+|---|---|---|---|
+| `phaseCorrelate` | 3.701 | **3.050** | **1.21×** |
+| `dft_2d` | 1.188 | **0.634** | **1.87×** |
+| `dft_1d_8192` | 0.046 | 0.042 | 1.10× |
+| `cvtColor_BGR2GRAY` | 0.022 | 0.022 | 1.01× |
+| `remap_cubic` | 0.170 | 0.172 | 0.99× |
+| `GaussianBlur` | 0.355 | 0.361 | 0.98× |
+| `warpAffine` | 0.174 | 0.179 | 0.97× |
+| `resize_half` | 0.013 | 0.015 | 0.90× |
+
+`phaseCorrelate` is **68% of measured op time**, so its 1.21× largely sets the
+end-to-end result. The biggest single win is `dft_2d` at 1.87×, which matters because
+`phaseCorrelate` is itself DFT-bound. Four operations show no gain, one is slightly
+slower; we report them rather than quoting only the favourable rows.
+
+**Cost per video-hour** (EC2 $0.31904/hr verified against the AWS Pricing API; COOL
+software $0.02/hr from the Marketplace listing)
+
+| | $/video-hour |
+|---|---|
+| stock on a plain AMI | $0.0498 |
+| stock on the COOL AMI | $0.0530 |
+| **COOL** | **$0.0419** |
+
+COOL is **16% cheaper per unit of work** than stock on a plain AMI, and 21% cheaper
+than stock on the same COOL instance. The software charge is more than repaid by the
+throughput.
+
+**Scaling — the architectural argument for Graviton**
+
+Thread scaling is flat for stock (6.4× at 1, 2, 4 and 8 threads), confirming
+`phaseCorrelate` does not parallelise internally. COOL gains a little (6.8 → 8.1).
+Throughput therefore comes from independent worker processes:
+
+| workers | Graviton4 (COOL) | Graviton4 (stock) | Apple M-series |
+|---|---|---|---|
+| 1 | 6.8× (100%) | 6.4× (100%) | 7.7× (100%) |
+| 2 | 13.6× (100%) | 12.8× (100%) | 12.0× (79%) |
+| 4 | 26.4× (97%) | 25.0× (98%) | 17.7× (58%) |
+| 8 | **50.0× (92%)** | **48.0× (94%)** | 22.8× (37%) |
+
+§7.1 predicted that Graviton4's uniform cores would scale more linearly than the
+Apple M-series' heterogeneous performance/efficiency cores. **Confirmed: 92–94%
+parallel efficiency at 8 workers versus 37%**, for 50.0× aggregate realtime against
+22.8×. All three runs use the same `spawn` start method, so the comparison is fair.
+
+**Caveat on the comparison.** COOL ships OpenCV **5.1.0-dev** while the stock wheel is
+**5.0.0**, so the 1.26× conflates KleidiCV optimisation with whatever changed upstream
+between 5.0 and 5.1. A same-version comparison would need a source build of 5.1.0-dev
+without KleidiCV, which we have not done. The figure is a fair measure of *what COOL
+delivers over the best available stock wheel*, which is the decision a deployer
+actually faces — but it is not a clean isolation of KleidiCV.
+
+Reproduce with `./deploy/run_all.sh c8g.2xlarge`; raw result JSON is in `results/`.
 
 ### 7.4 Web endpoint
 

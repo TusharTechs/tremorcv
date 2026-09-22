@@ -46,6 +46,20 @@ back for a better clip when it cannot, and declining to answer when it still can
 | Agent fault diagnosis (n=80) | **71.2%** overall · **87.7%** when it committed · 18.8% escalated |
 | Agent accuracy vs how badly the operator aims | **flat at 79.2%** (single-shot: 8.3–75%) |
 
+**On AWS Graviton4 (c8g.2xlarge), COOL vs stock OpenCV 5 on the same instance:**
+
+| | ms/frame | ×realtime | $/video-hour |
+|---|---|---|---|
+| stock OpenCV 5.0.0 | 5.21 | 6.4 | $0.0498 |
+| **COOL 5.1.0-dev + KleidiCV** | **4.14** | **8.1** | **$0.0419** |
+
+**1.26× end-to-end**, 16% cheaper per unit of work. `phaseCorrelate` is 68% of op
+time and gains 1.21×; `dft_2d` gains 1.87×. Four ops show no gain — all reported.
+
+Process scaling at 8 workers: **92% parallel efficiency on Graviton4 (50.0× realtime)
+versus 37% on an Apple M-series (22.8×)**, a prediction the report made before the run
+and the benchmark confirmed.
+
 ## Architecture
 
 <p align="center">

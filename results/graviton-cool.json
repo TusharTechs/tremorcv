@@ -1,0 +1,126 @@
+{
+  "label": "graviton-cool",
+  "provenance": {
+    "opencv_version": "5.1.0-dev",
+    "numpy_version": "2.5.1",
+    "python": "3.12.3",
+    "os": "Linux 6.17.0-1019-aws",
+    "arch": "aarch64",
+    "is_arm": true,
+    "cpu_model": "SVE NEON FP16 NEON_DOTPROD NEON_FP16 NEON_BF16",
+    "cpu_features": "Baseline:                    SVE NEON FP16 NEON_DOTPROD NEON_FP16 NEON_BF16",
+    "logical_cores": 8,
+    "cv2_threads": 8,
+    "cv2_file": "/opt/cool/python_3.12/site-packages/cv2/python-3.12/cv2.cpython-312-aarch64-linux-gnu.so",
+    "ec2_instance_type": "c8g.2xlarge",
+    "is_graviton": true,
+    "ec2_ami_id": "ami-033e481a24f94c8cb",
+    "ec2_region": "us-east-1",
+    "cool_markers": {
+      "kleidicv": true,
+      "cool_sdk_installed": true,
+      "carotene": true,
+      "cv2_loaded_from_cool": true
+    },
+    "cool_verified": true,
+    "cool_verification_parts": {
+      "is_arm": true,
+      "is_graviton": true,
+      "cv2_loaded_from_cool": true
+    },
+    "opencv_major": 5,
+    "opencv5_requirement_met": true,
+    "pythonpath": "/opt/cool/python_3.12/site-packages/cv2/python-3.12:",
+    "timestamp_utc": "2026-09-22T15:51:37Z"
+  },
+  "ops": {
+    "phaseCorrelate": {
+      "per_call_ms": 3.050297149999892,
+      "iqr_ms": 0.004183849999606082,
+      "n": 11
+    },
+    "cvtColor_BGR2GRAY": {
+      "per_call_ms": 0.021568275000305448,
+      "iqr_ms": 0.0004432500006146256,
+      "n": 44
+    },
+    "remap_cubic": {
+      "per_call_ms": 0.1717743250004844,
+      "iqr_ms": 0.001977149999277117,
+      "n": 44
+    },
+    "warpAffine": {
+      "per_call_ms": 0.17908515000044645,
+      "iqr_ms": 0.0024301500005208254,
+      "n": 44
+    },
+    "GaussianBlur": {
+      "per_call_ms": 0.3614566500004912,
+      "iqr_ms": 0.003435349998426318,
+      "n": 35
+    },
+    "resize_half": {
+      "per_call_ms": 0.014732825000152161,
+      "iqr_ms": 0.0007815000003574823,
+      "n": 44
+    },
+    "dft_1d_8192": {
+      "per_call_ms": 0.04238747500053819,
+      "iqr_ms": 6.619999908252794e-05,
+      "n": 44
+    },
+    "dft_2d": {
+      "per_call_ms": 0.633762274999583,
+      "iqr_ms": 0.005077650000373524,
+      "n": 20
+    }
+  },
+  "e2e": {
+    "clip_seconds": 20.0,
+    "frames": 600,
+    "frame_px": 364800,
+    "wall_s": 2.484001009999986,
+    "iqr_s": 0.0004386429999954089,
+    "n": 5,
+    "realtime_factor": 8.051526516891437,
+    "ms_per_frame": 4.14000168333331,
+    "video_seconds_per_compute_hour": 28985.495460809172
+  },
+  "thread_scaling": {
+    "1": 6.794681113296539,
+    "2": 7.460819346792597,
+    "4": 7.8609224099743225,
+    "8": 8.05033902755008
+  },
+  "process_scaling": {
+    "1": {
+      "aggregate_realtime_factor": 6.793022713013666,
+      "per_worker": 6.793022713013666,
+      "efficiency_vs_1x": 1.0
+    },
+    "2": {
+      "aggregate_realtime_factor": 13.580379801225098,
+      "per_worker": 6.790189900612549,
+      "efficiency_vs_1x": 0.9995829820507313
+    },
+    "4": {
+      "aggregate_realtime_factor": 26.37695728268578,
+      "per_worker": 6.594239320671445,
+      "efficiency_vs_1x": 0.9707371223768466
+    },
+    "8": {
+      "aggregate_realtime_factor": 50.014021507340566,
+      "per_worker": 6.251752688417571,
+      "efficiency_vs_1x": 0.9203197092865357
+    }
+  },
+  "cost": {
+    "instance_type": "c8g.2xlarge",
+    "video_hours_per_compute_hour": 8.051526516891437,
+    "ec2_usd_per_hour": 0.319,
+    "cool_ami_usd_per_hour": 0.02,
+    "ec2_price_verified": false,
+    "usd_per_video_hour": 0.042103817119499766,
+    "usd_per_20s_clip": 0.00023391009510833203
+  }
+}

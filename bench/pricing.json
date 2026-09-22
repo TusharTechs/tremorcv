@@ -1,11 +1,11 @@
 {
-  "_README": "EC2 rates below are from instances.vantage.sh (a third-party aggregator), NOT the AWS pricing API. They are marked _verified:false until confirmed against https://aws.amazon.com/ec2/pricing/on-demand/ for the region actually used. COOL AMI software rates come from the AWS Marketplace listing and ARE sourced.",
+  "_README": "EC2 rates verified against the AWS Pricing API (get-products, AmazonEC2, US East (N. Virginia), Shared tenancy, Linux, preInstalledSw=NA). COOL AMI software rates come from the AWS Marketplace listing.",
   "region": "us-east-1",
   "ec2_on_demand_usd_per_hour": {
-    "_verified": false,
-    "_source": "instances.vantage.sh, retrieved 2026-09-22 - confirm on the AWS pricing page",
+    "_verified": true,
+    "_source": "AWS Pricing API, retrieved 2026-09-22",
+    "c8g.2xlarge": 0.31904,
     "m8g.4xlarge": 0.71808,
-    "c8g.2xlarge": 0.319,
     "c7i.2xlarge": null
   },
   "cool_ami_usd_per_hour": {
@@ -17,6 +17,6 @@
     "m8g.4xlarge": 0.04,
     "m8g.16xlarge": 0.24,
     "r8g.24xlarge": 0.36,
-    "m8g.48xlarge": 0.80
+    "m8g.48xlarge": 0.8
   }
 }

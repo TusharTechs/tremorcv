@@ -11,64 +11,67 @@
     "cpu_features": "Baseline:                    NEON FP16 NEON_DOTPROD NEON_FP16",
     "logical_cores": 8,
     "cv2_threads": 8,
-    "cv2_file": "/Users/tusharagrawal/Library/Application Support/Claude/scratch-workspaces/211ca338-c0e4-49d3-a8bf-9862eaa8c6b3/4ac6d263-24b9-44ec-a5bf-2e58cc59e5fe/scratch-2026-09-22-b1781c/.venv/lib/python3.14/site-packages/cv2/__init__.py",
+    "cv2_file": "/Users/tusharagrawal/tremor/.venv/lib/python3.14/site-packages/cv2/__init__.py",
     "ec2_instance_type": "",
     "is_graviton": false,
     "ec2_ami_id": "",
     "ec2_region": "",
     "cool_markers": {
       "kleidicv": true,
-      "cool_sdk_path": false,
-      "cool_in_cv2_path": false,
-      "carotene": true
+      "cool_sdk_installed": false,
+      "carotene": true,
+      "cv2_loaded_from_cool": false
     },
     "cool_verified": false,
     "cool_verification_parts": {
       "is_arm": true,
       "is_graviton": false,
-      "cool_sdk_present": false
+      "cv2_loaded_from_cool": false
     },
-    "timestamp_utc": "2026-09-22T09:33:05Z"
+    "opencv_major": 5,
+    "opencv5_requirement_met": true,
+    "pythonpath": "",
+    "timestamp_utc": "2026-09-22T15:54:05Z"
   },
   "ops": {
     "phaseCorrelate": {
-      "per_call_ms": 3.050277099828236,
-      "iqr_ms": 2.494514647696633,
+      "per_call_ms": 2.300658350577578,
+      "iqr_ms": 0.0585979491006583,
       "n": 11
     },
     "cvtColor_BGR2GRAY": {
-      "per_call_ms": 0.03424062524572946,
-      "iqr_ms": 0.027847949240822345,
+      "per_call_ms": 0.021134374401299283,
+      "iqr_ms": 0.0010103496606461704,
       "n": 44
     },
     "remap_cubic": {
-      "per_call_ms": 0.25831769962678663,
-      "iqr_ms": 0.058547849766910076,
+      "per_call_ms": 0.2030583498708438,
+      "iqr_ms": 0.013793748803436756,
       "n": 44
     },
     "warpAffine": {
-      "per_call_ms": 0.2419052252662368,
-      "iqr_ms": 0.040247951983474195,
-      "n": 44
+      "per_call_ms": 0.36970209985156544,
+      "iqr_ms": 0.3209395508747548,
+      "n": 12
     },
     "GaussianBlur": {
-      "per_call_ms": 0.25411040041944943,
-      "iqr_ms": 0.022947948309592903,
-      "n": 44
+      "per_call_ms": 0.2605146000860259,
+      "iqr_ms": 0.14291249972302467,
+      "n": 39
     },
     "resize_half": {
-      "per_call_ms": 0.011878125224029645,
-      "iqr_ms": 0.0010083502274937928,
+      "per_call_ms": 0.010329174983780831,
+      "iqr_ms": 0.0006583490176126361,
       "n": 44
     },
     "dft_1d_8192": {
-      "per_call_ms": 0.04568227523122914,
-      "iqr_ms": 0.0005271009285934269,
+      "per_call_ms": 0.041041650547413155,
+      "iqr_ms": 0.015666650142520666,
       "n": 44
     },
     "dft_2d": {
-      "per_call_ms": 0.8755396003834903,
-      "iqr_ms": 0.03316455113235861,
+      "per_call_ms": 0.85763334936928,
+      "iqr_ms": 0.059752150264102966,
       "n": 15
     }
   },
@@ -76,47 +79,47 @@
     "clip_seconds": 20.0,
     "frames": 600,
     "frame_px": 364800,
-    "wall_s": 3.0236361660063267,
-    "iqr_s": 0.38152091699885204,
+    "wall_s": 2.5885373750061262,
+    "iqr_s": 0.05538516596425325,
     "n": 5,
-    "realtime_factor": 6.614552446770195,
-    "ms_per_frame": 5.039393610010545,
-    "video_seconds_per_compute_hour": 23812.3888083727
+    "realtime_factor": 7.726370958793928,
+    "ms_per_frame": 4.314228958343544,
+    "video_seconds_per_compute_hour": 27814.93545165814
   },
   "thread_scaling": {
-    "1": 6.6830858948860055,
-    "2": 6.736969939145207,
-    "4": 6.671312123581494,
-    "8": 6.8298472811584805
+    "1": 7.9515875541225105,
+    "2": 8.102140443882547,
+    "4": 7.643740050007637,
+    "8": 8.019456265825395
   },
   "process_scaling": {
     "1": {
-      "aggregate_realtime_factor": 6.492695960572195,
-      "per_worker": 6.492695960572195,
+      "aggregate_realtime_factor": 7.6541253821795445,
+      "per_worker": 7.6541253821795445,
       "efficiency_vs_1x": 1.0
     },
     "2": {
-      "aggregate_realtime_factor": 12.284566668972975,
-      "per_worker": 6.142283334486487,
-      "efficiency_vs_1x": 0.9460297189004941
+      "aggregate_realtime_factor": 12.048552677566006,
+      "per_worker": 6.024276338783003,
+      "efficiency_vs_1x": 0.7870626672524621
     },
     "4": {
-      "aggregate_realtime_factor": 15.505188756577725,
-      "per_worker": 3.8762971891444313,
-      "efficiency_vs_1x": 0.5970242889369515
+      "aggregate_realtime_factor": 17.727226609050465,
+      "per_worker": 4.431806652262616,
+      "efficiency_vs_1x": 0.5790088914117894
     },
     "8": {
-      "aggregate_realtime_factor": 20.377303897674448,
-      "per_worker": 2.547162987209306,
-      "efficiency_vs_1x": 0.39231206923553946
+      "aggregate_realtime_factor": 22.83551555700317,
+      "per_worker": 2.8544394446253962,
+      "efficiency_vs_1x": 0.37292823178349643
     }
   },
   "cost": {
     "instance_type": "local",
-    "video_hours_per_compute_hour": 6.614552446770194,
+    "video_hours_per_compute_hour": 7.726370958793928,
     "ec2_usd_per_hour": null,
     "cool_ami_usd_per_hour": 0.0,
-    "ec2_price_verified": false,
+    "ec2_price_verified": true,
     "usd_per_video_hour": null,
     "usd_per_20s_clip": null
   }
