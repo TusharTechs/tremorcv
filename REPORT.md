@@ -321,8 +321,8 @@ The texture threshold, derived from the corrupted data, was recalibrated from 15
 | | Agent | before the comb fix |
 |---|---|---|
 | Fault correct, all scenarios | **83.8%** | 71.2% |
-| Fault correct when it committed | **89.3%** | 87.7% |
-| Escalated rather than guessed | **6.2%** | 18.8% |
+| Fault correct when it committed | **90.5%** | 87.7% |
+| Escalated rather than guessed | **7.5%** | 18.8% |
 | Median shaft-frequency error | **0.000 Hz** | 0.000 Hz |
 | Mean acquisitions | 1.86 | 1.86 |
 
@@ -341,7 +341,7 @@ a quarter of the spacing fixes that, and changes nothing above f₀ = 1 Hz.
 That alone was insufficient, because 0.802 × 3 lands on 2.406 exactly. So the comb must
 also have a plausible *shape*: unbalance and looseness put most energy at 1×,
 misalignment at 2×, and no standard signature is dominated by 3× with 1× and 2× both
-weak. The two guards together moved escalation from 18.8% to 6.2% without costing
+weak. The two guards together moved escalation from 18.8% to 7.5% without costing
 precision, which is the direction that matters: the loop was declining to answer
 questions it could in fact answer.
 
@@ -595,6 +595,14 @@ amplitudes read low.
 bearing stages, cavitation, electrical faults and more.
 
 ---
+
+**Machines below 60 RPM are out of scope.** `estimate_shaft` will not return a
+fundamental under 1 Hz. Section 6.3 measured 78.6% of handheld camera energy
+below that, so a "shaft rate" found there is fitting the operator's hand and the
+1/f noise floor rather than the machine. Without the floor the comb picked the
+lowest bin it was offered on a near silent machine and reported mechanical
+looseness at 0.61 confidence on a healthy one. A tripod would remove the reason
+for the floor, but the premise of this project is that there is no tripod.
 
 ## 9. Responsible use
 

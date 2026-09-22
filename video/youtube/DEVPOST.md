@@ -148,8 +148,8 @@ Open http://50.19.247.214 and press "Run agent". Nothing to install. The agent i
 For the real footage claim, switch to "Upload clip" and use this free clip, which is not ours: https://pixabay.com/videos/id-39861/ . Leave frame rate at 0 and press Measure. Expect 2.406 Hz, which is 144 RPM, unbalance at confidence 1.00, with 7.6 px of camera motion cancelled. The independent check: the same spectrum has the blade pass peak at 12.18 Hz, there are five blades in the preview, and 12.18 over 5 is 2.436 Hz against a measured 2.406, so two unrelated features of the same footage agree to 1.2 percent.
 
 Locally: pip install -r requirements.txt, then uvicorn webapp.server:app --port 8000.
-Tests: python -m pytest -q  (37 tests, about 30 seconds).
-Agent evaluation: python eval_agent.py 80  (expect 83.8 percent correct overall, 89.3 percent when it committed).
+Tests: python -m pytest -q  (38 tests, about a minute).
+Agent evaluation: python eval_agent.py 80  (expect 83.8 percent correct overall, 90.5 percent when it committed).
 MCP: python -m agent.mcp_server exposes eight tools. See docs/MCP.md.
 
 Full instructions, including how to reproduce the COOL and Graviton benchmark, are in TESTING.md in the uploaded bundle.
@@ -178,7 +178,7 @@ yourself before submitting. What the project actually has against each:
 
 * The loop closes on the **physical world**: perception, decision, then a new
   acquisition. It asks the operator for a different shot, or for 240 fps.
-* It **declines to answer** when it cannot support an answer. 89.3 percent
+* It **declines to answer** when it cannot support an answer. 90.5 percent
   correct when it committed, across 80 scenarios.
 * Every guard rail lives **in a tool rather than a prompt**, so all of it is
   testable.

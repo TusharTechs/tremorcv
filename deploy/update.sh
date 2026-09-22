@@ -23,9 +23,7 @@ fi
 
 if [ "$REQ_BEFORE" != "$REQ_AFTER" ]; then
   echo "requirements changed, reinstalling"
-  grep -v '^opencv-python==' requirements.txt > /tmp/req-headless.txt
-  echo "opencv-python-headless==5.0.0.93" >> /tmp/req-headless.txt
-  .venv/bin/pip install -q -r /tmp/req-headless.txt
+  .venv/bin/pip install -q -r requirements.txt
 fi
 
 # Never restart into a build that cannot import. A failed check leaves the OLD

@@ -1,13 +1,21 @@
-# Local / stock-OpenCV environments.
-# On the COOL AMI use requirements-cool.txt instead -- installing
-# opencv-python there would shadow the COOL build.
+# Local / stock-OpenCV environments. Needs Python 3.12 or newer: numpy 2.5.3
+# publishes no wheel below cp312.
+#
+# The HEADLESS OpenCV wheel, deliberately. Nothing in this project calls cv2's
+# GUI functions, and the full wheel links libGL, which a server, a container or
+# WSL without desktop libraries does not have. Using it made `import cv2` fail
+# on deploy and, with systemd Restart=always, turned that into a crash loop
+# that looked like a slow startup. The two wheels are otherwise identical.
+#
+# On the COOL AMI use requirements-cool.txt instead -- installing an
+# opencv-python wheel there would shadow the COOL build.
 boto3==1.43.99
 fastapi==0.141.1
 httpx==0.28.1
 matplotlib==3.11.2
 mcp==2.2.0
 numpy==2.5.3
-opencv-python==5.0.0.93
+opencv-python-headless==5.0.0.93
 pytest==9.1.1
 python-multipart==0.0.32
 uvicorn==0.53.0

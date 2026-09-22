@@ -52,14 +52,44 @@ visible surface texture and something rigid in frame to reference against.
 
 ## 3. Run it locally
 
+**Needs Python 3.12 or newer.** numpy 2.5.3 publishes no wheel below cp312, so
+on 3.11 or older pip tries to build it from source and usually fails. Check with
+`python3 --version`.
+
+Wheels exist for every platform we pin: Windows 64 and 32 bit, Linux x86_64 and
+arm64, macOS Intel and Apple silicon.
+
+**macOS and Linux**
+
 ```bash
 git clone https://github.com/TusharTechs/tremorcv && cd tremorcv
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn webapp.server:app --port 8000
 ```
 
+**Windows, PowerShell**
+
+```powershell
+git clone https://github.com/TusharTechs/tremorcv
+cd tremorcv
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn webapp.server:app --port 8000
+```
+
+If PowerShell blocks the activate script, either run
+`Set-ExecutionPolicy -Scope Process RemoteSigned` first, or use
+`.venv\Scripts\activate.bat` from cmd.exe instead.
+
 Then open http://localhost:8000.
+
+`requirements.txt` pins **opencv-python-headless** on purpose. Nothing in this
+project calls cv2's GUI functions, and the full wheel links libGL, which a
+server, a container or WSL without desktop libraries does not have. Using the
+full wheel is what broke our own first deployment.
 
 ## 4. The test suite
 
@@ -67,12 +97,23 @@ Then open http://localhost:8000.
 python -m pytest -q
 ```
 
-37 tests, about 30 seconds. Two are worth looking at directly:
+38 tests, about a minute. Pure Python, so it runs the same on all three
+platforms. Two are worth reading rather than just running:
 
 * `tests/test_phasecorrelate_mutation.py` fails without `base.copy()`, which is
-  the upstream behaviour described in section 6.5.
-* `bash tests/test_deploy_scripts.sh` runs the deployment scripts under `env -i`,
-  because four of our deployment failures were things that only break on Linux.
+  the upstream OpenCV behaviour described in section 6.5 of the report.
+* `tests/test_agent_loop.py::test_shaft_estimate_stays_out_of_the_hand_motion_band`
+  pins a real regression: the harmonic comb used to pick a fundamental inside
+  the band where the operator's own hand dominates.
+
+There is one **Unix only** extra, because it exercises the deployment scripts:
+
+```bash
+bash tests/test_deploy_scripts.sh
+```
+
+It runs them under `env -i`, since four of our deployment failures were things
+that work on macOS and break on Linux. On Windows, run it under WSL or skip it.
 
 ## 5. Reproduce the agent evaluation
 
@@ -81,7 +122,7 @@ python eval_agent.py 80
 ```
 
 About twelve minutes. Expect **83.8 percent** fault correct across all scenarios,
-**89.3 percent** when the agent committed, and a confusion matrix. The seed is
+**90.5 percent** when the agent committed, and a confusion matrix. The seed is
 fixed, so the numbers should match the report.
 
 ## 6. Reproduce the COOL and Graviton benchmark

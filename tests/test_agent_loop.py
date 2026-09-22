@@ -2,6 +2,7 @@
 import pytest
 from agent.env import MachineEnv, Scenario, Acquisition, AIM_POINTS
 from agent.loop import run, MAX_ACQUISITIONS, CONFIDENCE_TO_REPORT
+from agent import tools
 
 
 def scen(**kw):
@@ -39,11 +40,38 @@ def test_raises_frame_rate_when_a_needed_harmonic_is_above_nyquist():
     assert any(f >= 240 for f in fps_asked), [s.why for s in o.steps]
 
 
-def test_escalates_instead_of_asserting_a_low_confidence_fault():
+def test_never_names_a_mechanical_fault_on_a_healthy_machine():
+    """A healthy machine with almost no vibration, aimed at the worst surface.
+
+    Two answers are safe here: escalate, or say healthy. Only one answer is
+    wrong, and it is the one that matters, because a maintenance team acts on it.
+
+    This used to assert escalation specifically. The harmonic-comb guards in
+    estimate_shaft made the scenario answerable, so the agent now reads it
+    correctly instead of giving up, and the assertion moved to the property
+    rather than to which of the two safe answers comes out.
+    """
     o = run(MachineEnv(scen(fault="healthy", severity_px=0.02, default_aim="housing")),
             verbose=False)
-    assert o.escalated, o.reason
-    assert o.fault is None, "must not name a fault it cannot support"
+    assert o.escalated or o.fault == "healthy", o.reason
+    assert o.fault not in ("mechanical_looseness", "misalignment", "unbalance"), o.reason
+
+
+def test_shaft_estimate_stays_out_of_the_hand_motion_band():
+    """No shaft estimate below SHAFT_MIN_HZ, on any scenario.
+
+    78.6% of handheld camera energy sits under 1 Hz (report section 6.3), so a
+    fundamental found there is fitting the operator rather than the machine.
+    Before this floor existed the comb picked the lowest bin it was offered on a
+    near silent machine and reported looseness at 0.61 confidence.
+    """
+    for fault in ("healthy", "unbalance", "mechanical_looseness"):
+        for sev in (0.02, 0.2, 0.6):
+            o = run(MachineEnv(scen(fault=fault, severity_px=sev,
+                                    default_aim="housing")), verbose=False)
+            if o.shaft_hz is not None:
+                assert o.shaft_hz >= tools.SHAFT_MIN_HZ, (
+                    f"{fault} sev={sev} gave {o.shaft_hz} Hz, inside the hand band")
 
 
 def test_every_decision_carries_a_rationale():

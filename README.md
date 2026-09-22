@@ -105,6 +105,9 @@ which sits above Nyquist at 30 fps for any shaft above 5 Hz. Routing those cases
 
 ## Quick start
 
+**Python 3.12 or newer.** numpy 2.5.3 publishes no wheel below cp312. Wheels
+exist for Windows, Linux and macOS on both x86_64 and arm64.
+
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
@@ -114,6 +117,14 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pytest tests/             # phaseCorrelate mutation regression
 .venv/bin/python analyze_video.py <clip.mov>  # measure your own footage
 ```
+
+On Windows the interpreter lives at `.venv\Scripts\python.exe`, so use that in
+place of `.venv/bin/python` throughout, or activate the environment first with
+`.venv\Scripts\Activate.ps1`.
+
+`requirements.txt` pins **opencv-python-headless**: nothing here calls cv2's GUI
+functions, and the full wheel links libGL, which a server, a container or WSL
+without desktop libraries does not have.
 
 **Web endpoint** — live at **<http://50.19.247.214>**. No build step, no CDN, so it
 runs locally with uvicorn and nothing else:

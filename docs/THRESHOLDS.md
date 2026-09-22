@@ -147,6 +147,11 @@ unbalance (which need only 1x and 2x) still resolve in one 30 fps clip.
 | escalated | 27.5% | **18.8%** |
 | mean acquisitions | 1.79 | 1.86 |
 
+Those are the figures *at the time of that change*. Two later harmonic-comb
+guards (report section 6.6) took the same harness to **83.8% overall, 90.5% when
+answered, 7.5% escalated**. The table is kept as the record of what the 240 fps
+routing was worth on its own.
+
 ## Two failures from the first Graviton run
 
 Recorded because both produced confident, wrong output rather than an error.

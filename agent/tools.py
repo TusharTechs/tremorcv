@@ -135,7 +135,16 @@ HARMONIC_WEIGHTS = ((1, 1.0), (2, 0.9), (3, 0.6))
 FUNDAMENTAL_MIN_SHARE = 0.15   # a real fundamental carries non-trivial energy itself
 
 
-def estimate_shaft(meas: Measurement, fmin=0.5):
+# Below this we cannot tell a shaft from the operator. §6.3 measured 78.6% of
+# handheld camera energy under 1 Hz, so a "fundamental" found there is fitting
+# hand motion and 1/f noise, not a machine. Allowing 0.5 Hz let the comb pick
+# the lowest bin it was offered on a near silent machine and report looseness at
+# 0.61 confidence on a healthy one. The cost is that machines under 60 RPM are
+# out of scope, which §8 now states.
+SHAFT_MIN_HZ = 1.0
+
+
+def estimate_shaft(meas: Measurement, fmin=SHAFT_MIN_HZ):
     """Harmonic-comb scoring over candidate fundamentals.
 
     Taking "the lowest strong peak" is wrong and was the dominant error source:

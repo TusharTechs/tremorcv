@@ -73,7 +73,7 @@ Six OpenCV 5 stages, and **no neural network anywhere**.
 
 The agent sits on top as a deterministic policy over those tools. Every guard
 rail lives **in a tool rather than in a prompt**, which is the only reason any of
-it is testable. There are 37 regression tests.
+it is testable. There are 38 regression tests.
 
 It runs on **AWS Graviton** with **COOL**, the Cloud Optimized OpenCV Library. We
 picked Graviton on a prediction and then measured it. COOL gives **1.26x** end to
@@ -123,7 +123,7 @@ not. There is now a test that runs the deploy scripts under `env -i`.
   limitations we had already published** rather than leaving them standing.
 * Every threshold in the system is a number we measured. The report says where
   each came from, and says plainly what the tool cannot do.
-* The agent **refuses to answer** when it cannot support an answer: 89.3 percent
+* The agent **refuses to answer** when it cannot support an answer: 90.5 percent
   correct when it committed, across 80 scenarios.
 * We deliberately shipped a **failing** provenance check into the benchmark to
   prove the gate works.
