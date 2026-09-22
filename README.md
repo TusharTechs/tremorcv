@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="http://50.19.247.214"><b>▶ Live demo</b></a> &nbsp;·&nbsp;
-  <a href="https://youtu.be/vS2g5MvfPmo"><b>▶ Demo video, 3 min</b></a> &nbsp;·&nbsp;
+  <a href="https://youtu.be/vS2g5MvfPmo"><b>▶ Demo video</b></a> &nbsp;·&nbsp;
   <a href="REPORT.md"><b>Technical report</b></a> &nbsp;·&nbsp;
   <a href="submission/TESTING.md"><b>How to verify every claim</b></a>
 </p>
@@ -29,7 +29,7 @@
 | | |
 |---|---|
 | **Working endpoint** | **<http://50.19.247.214>** · press *Run agent*, nothing to install |
-| **Video** | **<https://youtu.be/vS2g5MvfPmo>** · 3 min |
+| **Video** | **<https://youtu.be/vS2g5MvfPmo>** |
 | **Technical report** | [REPORT.md](REPORT.md) · problem, users, architecture, OpenCV 5, AWS, evaluation, limitations, responsible use |
 | **Testing instructions** | [submission/TESTING.md](submission/TESTING.md) · reproduce every number, including on your own footage |
 | **Architecture diagram** | [docs/architecture.svg](docs/architecture.svg) · OpenCV 5, AWS, COOL and agent components |
