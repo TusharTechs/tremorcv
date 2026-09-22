@@ -11,7 +11,9 @@ set -euo pipefail
 unset PYTHONPATH
 unset LD_LIBRARY_PATH
 
-VENV="${STOCK_VENV:-$HOME/stock-venv}"
+# cloud-init runs user-data as root with a minimal environment: HOME is NOT
+# set, and under `set -u` a bare $HOME aborts the script.
+VENV="${STOCK_VENV:-${HOME:-/root}/stock-venv}"
 rm -rf "$VENV"
 python3 -m venv "$VENV"
 # shellcheck disable=SC1090

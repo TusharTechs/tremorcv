@@ -2,6 +2,9 @@
 # One shot: both benchmarks + results tarball. Keeps paid instance time to minutes.
 #   ./deploy/run_all.sh c8g.2xlarge
 set -euo pipefail
+# cloud-init gives user-data a minimal env (no HOME). Pin it before anything
+# that expands $HOME under set -u.
+export HOME="${HOME:-/root}"
 INSTANCE="${1:?usage: ./deploy/run_all.sh <instance-type>   e.g. c8g.2xlarge}"
 cd "$(dirname "$0")/.."
 
@@ -40,6 +43,14 @@ deactivate 2>/dev/null || true
 
 echo; echo "=============== 2/3  stock baseline ==============="
 ./deploy/setup_stock.sh
+
+# setup_stock.sh unsets PYTHONPATH in ITS OWN process; this parent shell still
+# carries COOL's, because we sourced COOL's activate above. Without clearing it
+# here the baseline would import COOL through PYTHONPATH even from a clean venv --
+# the exact leak that made the first run a COOL-vs-COOL comparison.
+unset PYTHONPATH
+unset LD_LIBRARY_PATH
+
 # shellcheck disable=SC1090
 source "$HOME/stock-venv/bin/activate"
 
