@@ -42,10 +42,28 @@ Expect, in about eight seconds:
 | Camera motion | 7.6 px, cancelled |
 | Rejected frames | 0.0% |
 
-**The independent check.** The same spectrum contains the blade pass peak at
-12.18 Hz. Count five blades in the preview image. 12.18 divided by 5 is
-2.436 Hz, against a measured 2.406 Hz, so two unrelated features of the same
-footage agree to **1.2 percent**.
+**The independent check.** The same spectrum also contains the blade pass peak at
+**12.178 Hz**. Count five blades in the preview image: 12.178 divided by 5 is
+2.436 Hz against a measured 2.406 Hz, so two unrelated features of the same footage
+agree to **1.2 percent**.
+
+Be warned that it is a *small* bump on the chart, not an obvious spike: amplitude
+0.055 px against 1.13 px for the shaft peak, about 3.8 times the noise floor. It is
+near the right hand edge, just past 12 Hz. If you would rather read it off a number
+than squint at a chart:
+
+```bash
+curl -s -F "file=@39861-424022822_medium.mp4" -F "fps=0" \
+  http://50.19.247.214/api/measure | python3 -c "
+import sys, json
+d = json.load(sys.stdin); sp = d['spectrum']
+f, a = sp['freqs'], sp['amps']
+bp = max(((x, y) for x, y in zip(f, a) if 11.9 < x < 12.5), key=lambda t: t[1])
+print(f'shaft      {d[\"shaft_hz\"]:.3f} Hz = {d[\"shaft_hz\"]*60:.0f} RPM')
+print(f'blade pass {bp[0]:.3f} Hz, amp {bp[1]:.4f}')
+print(f'{bp[0]:.3f} / 5 blades = {bp[0]/5:.3f} Hz  ->  '
+      f'{abs(bp[0]/5 - d[\"shaft_hz\"]) / d[\"shaft_hz\"] * 100:.1f}% agreement')"
+```
 
 Your own footage works too. Ten seconds, handheld is fine, no tripod. It needs
 visible surface texture and something rigid in frame to reference against.
@@ -134,9 +152,11 @@ bash deploy/make-userdata.sh       # writes cloud init for a c8g.2xlarge
 # launch the COOL AMI ami-033e481a24f94c8cb with that user data
 ```
 
-Results land in `results/` as JSON. **Check the provenance block first.** Each
-file records `cv2_loaded_from_cool`, the resolved `cv2.__file__` and the
-`PYTHONPATH`. An earlier run of ours produced a plausible 0.4 percent difference
+Results land in `results/` as JSON. **Check the `provenance` block first.** Each
+file records `opencv_version`, `cv2_file` (the resolved path OpenCV was imported
+from), `pythonpath`, `ec2_instance_type`, `ec2_ami_id`, `ec2_region`, and
+`cool_verification_parts`, which breaks `cool_verified` into its three independent
+conditions: `is_arm`, `is_graviton` and `cv2_loaded_from_cool`. An earlier run of ours produced a plausible 0.4 percent difference
 because COOL's activate script exports `PYTHONPATH` and a virtualenv deactivate
 does not unset it, so both legs had loaded COOL. The gate exists because we were
 caught by exactly that.
