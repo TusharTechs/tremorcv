@@ -30,7 +30,7 @@ from agent.loop import (MAX_ACQUISITIONS, CONFIDENCE_TO_REPORT, FAST_FPS,
 
 HERE = Path(__file__).resolve().parent
 app = FastAPI(title="TREMOR", docs_url="/api/docs")
-MAX_UPLOAD_MB = 200
+MAX_UPLOAD_MB = int(os.environ.get("TREMOR_MAX_UPLOAD_MB", "200"))
 
 
 @app.get("/api/health")
