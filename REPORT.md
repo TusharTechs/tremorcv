@@ -61,7 +61,7 @@ the frequency came out to **0.33%**.
   <img src="docs/architecture.svg" alt="TREMOR architecture" width="900">
 </p>
 
-<sub>Source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> · regenerate with <a href="docs/render-architecture.sh"><code>docs/render-architecture.sh</code></a></sub>
+<sub>Source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> · regenerate with <a href="docs/render-architecture.sh"><code>docs/render-architecture.sh</code></a><br><b>Dashed grey = designed but not yet implemented.</b> The OpenCV 5 pipeline, the agent and the decision trace are built and exercised by the test suite; the COOL/Graviton leg is benchmarked (§7.3). S3/Lambda/SQS ingest and DynamoDB/CloudWatch state are the intended production path and are <i>not</i> yet wired into the application — S3 and EC2 were used operationally to run the benchmark, but no application code calls them.</sub>
 
 Capture → S3 → Lambda → SQS → **OpenCV 5 pipeline on AWS Graviton under COOL** →
 DynamoDB/S3 state → agent → verdict. The verdict either reports, escalates to a
