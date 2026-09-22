@@ -104,3 +104,83 @@ Upload in this order. The cover doubles as the first gallery image.
 | 137 ok  | `12_evidence.png` | Checked against answers we already knew: an oscillator to 0.33 percent, and a ceiling fan to 1.2 percent against its own blade pass rate. |
 | 129 ok  | `13_cool_graviton.png` | COOL gives 1.26 times end to end. Graviton4 holds 92 percent parallel efficiency at eight workers against 37 percent on a laptop. |
 | 134 ok  | `14_limitations.png` | Stated plainly. 30 fps caps the band at 15 Hz, it needs visible surface texture, and it is a screening tool rather than a replacement. |
+
+## Upload a file (limit 35 MB)
+
+`submission/TREMOR_submission.zip`, **5.5 MB**. Rebuild it with the commands in
+`submission/` if anything changes.
+
+```
+TREMOR/
+  TREMOR_technical_report.pdf     the full report, 5,476 words, typeset
+  TESTING.md                      how to verify every claim
+  figures/                        architecture diagram and validation plots
+  benchmark/                      the three raw result JSON files, with provenance
+  source/                         clean snapshot of the repository
+```
+
+Media is left out deliberately: the video is on YouTube and the gallery images
+are uploaded separately, so the bundle stays small enough to open quickly.
+
+## Repository URL
+
+```
+https://github.com/TusharTechs/tremorcv
+```
+
+## Working web endpoint
+
+```
+http://50.19.247.214
+```
+
+Plain HTTP on an Elastic IP, so a browser will warn that it is not secure. There
+is no login, nothing is stored and no personal data is collected. Verified
+reachable from outside our own network.
+
+## Testing instructions
+
+Paste `submission/TESTING.md` whole. If the field is short, use this:
+
+```
+Open http://50.19.247.214 and press "Run agent". Nothing to install. The agent is not told the fault, the shaft speed, or whether its first clip is usable. With the default aim point it will measure, find signal to noise below its threshold, refuse to answer, ask the operator to brace or re aim, and only then commit. Ground truth is printed under the verdict.
+
+For the real footage claim, switch to "Upload clip" and use this free clip, which is not ours: https://pixabay.com/videos/id-39861/ . Leave frame rate at 0 and press Measure. Expect 2.406 Hz, which is 144 RPM, unbalance at confidence 1.00, with 7.6 px of camera motion cancelled. The independent check: the same spectrum has the blade pass peak at 12.18 Hz, there are five blades in the preview, and 12.18 over 5 is 2.436 Hz against a measured 2.406, so two unrelated features of the same footage agree to 1.2 percent.
+
+Locally: pip install -r requirements.txt, then uvicorn webapp.server:app --port 8000.
+Tests: python -m pytest -q  (37 tests, about 30 seconds).
+Agent evaluation: python eval_agent.py 80  (expect 83.8 percent correct overall, 89.3 percent when it committed).
+MCP: python -m agent.mcp_server exposes eight tools. See docs/MCP.md.
+
+Full instructions, including how to reproduce the COOL and Graviton benchmark, are in TESTING.md in the uploaded bundle.
+```
+
+## Sponsor and special prizes
+
+Tick **both** boxes: **Best Use of COOL Award** and **Agentic Vision Award**.
+
+We could not open the prizes page to re read the exact criteria, so check them
+yourself before submitting. What the project actually has against each:
+
+**Best Use of COOL**
+
+* Benchmarked on the COOL AMI on Graviton4, both legs on the **same instance**,
+  so the library is the only variable.
+* A **provenance gate** that resolves `cv2.__file__` and refuses to report until
+  the two legs are proven to differ. We shipped a deliberately failing check to
+  prove the gate works.
+* 1.26x end to end, 1.87x on the 2D transform, and 92 percent parallel
+  efficiency at eight workers against 37 percent on a laptop.
+* The caveat is stated rather than buried: COOL ships 5.1.0 dev against a 5.0.0
+  baseline, so the figure conflates KleidiCV with upstream changes.
+
+**Agentic Vision**
+
+* The loop closes on the **physical world**: perception, decision, then a new
+  acquisition. It asks the operator for a different shot, or for 240 fps.
+* It **declines to answer** when it cannot support an answer. 89.3 percent
+  correct when it committed, across 80 scenarios.
+* Every guard rail lives **in a tool rather than a prompt**, so all of it is
+  testable.
+* Exposed over **MCP**, eight tools, documented in `docs/MCP.md`.
+* The decision trace is a first class output, streamed live over SSE.
