@@ -172,12 +172,26 @@ interpreter imported. It now requires `"/opt/cool" in os.path.realpath(cv2.__fil
 and `opencv_major`, so a leak or a version mismatch is visible in every result file
 instead of buried in a log.
 
-**Open question: COOL ships OpenCV 4.14.0-pre.** The AMI
-(`ami-01db31139bc5615d8`, Graviton4) reports `4.14.0-pre`, while the Marketplace
-listing describes "Version 3.1 (built on OpenCV 5.0)". The competition requires
-OpenCV 5 for the substantive analysis, so whether COOL can carry the core workload
-is unresolved and has been raised with the organisers. `run_all.sh` warns loudly and
-records the version rather than failing.
+**Resolved: pick the COOL AMI by measured version, not by name.** The AMI whose
+name matches the subscription title ships OpenCV 4, which would fail the competition's
+OpenCV 5 requirement. Probed every venv on each image:
+
+| AMI | Name | OpenCV | KleidiCV |
+|---|---|---|---|
+| `ami-01db31139bc5615d8` | COOL-Graviton4-v2 | 4.14.0-pre (all venvs) | yes |
+| `ami-033e481a24f94c8cb` | Graviton5-COOL-v3 | **5.1.0-dev** (all venvs) | yes |
+
+Both share product code `aajkmdd4qo3r7yhqg61a7aah9`, so a single subscription covers
+both, and the "Graviton5" image boots and runs on Graviton4 (`c8g`) hardware. It needs
+a 60 GB root volume rather than 50. The graviton2/graviton3 COOL listings are separate
+products (`OptInRequired` without their own subscription).
+
+Note the version is `5.1.0-dev`, a development build rather than a tagged 5.0.0
+release. It is OpenCV 5 and satisfies the requirement, but the report states the exact
+string rather than rounding it.
+
+Probing cost about $0.02 and ten minutes — considerably less than waiting on an
+answer.
 
 ## Reproducing
 

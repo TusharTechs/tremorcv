@@ -22,7 +22,22 @@ clip. Budget roughly **20 minutes** of instance time and **under $1**.
 [Marketplace console](https://console.aws.amazon.com/marketplace/home#/subscriptions)
 → Cloud Optimized OpenCV for AWS Graviton4 → **Launch**
 
-- Instance type **`c8g.2xlarge`** (8 vCPU, $0.319/hr + $0.02/hr COOL).
+**Use AMI `ami-033e481a24f94c8cb` (Graviton5-COOL-v3), not the Graviton4-named one.**
+Measured on 2026-09-22:
+
+| AMI | Name | OpenCV |
+|---|---|---|
+| `ami-01db31139bc5615d8` | COOL-Graviton4-v2 | **4.14.0-pre** — fails the OpenCV 5 requirement |
+| `ami-033e481a24f94c8cb` | Graviton5-COOL-v3 | **5.1.0-dev**, KleidiCV enabled |
+
+Both carry product code `aajkmdd4qo3r7yhqg61a7aah9`, so one subscription covers
+both. The "Graviton5" image runs fine on Graviton4 (`c8g`) hardware. Picking by name
+gets you the OpenCV 4 build; pick by measured version. Note it needs a **60 GB** root
+volume, not 50. The graviton2 and graviton3 COOL listings are *separate* products and
+return `OptInRequired` without their own subscription.
+
+- Instance type **`c8g.2xlarge`** (8 vCPU, $0.319/hr + $0.02/hr COOL)
+- Root volume **60 GB** (the v3 snapshot requires it)
   Not the vendor-recommended m8g.4xlarge: our own process-scaling data shows parallel
   efficiency falling to 60% at 4 workers, so 16 vCPUs would be idle at double the cost.
 - Region **us-east-1** (matches `bench/pricing.json`)
