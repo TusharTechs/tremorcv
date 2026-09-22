@@ -40,6 +40,7 @@ back for a better clip when it cannot, and declining to answer when it still can
 | | |
 |---|---|
 | Real handheld iPhone clip, ground truth 7.30 Hz | **7.276 Hz — 0.33% error**, SNR 196 |
+| **Real ceiling fan**, handheld | **2.406 Hz = 144 RPM**, cross-checked against blade-pass ÷ 5 blades to **1.2%** |
 | Camera motion during that clip | **72.3 px peak-to-peak**, 25× the signal |
 | 1×/2×/3× through shake + rolling shutter + glare + H.264 | **0.000 Hz error**, amplitude within ±5% |
 | Smallest measurable motion | **0.01 px** at SNR 23.3 |

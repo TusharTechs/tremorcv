@@ -222,6 +222,37 @@ macOS defaults to `spawn`, provides `HOME`, ships `libGL`, and had the RAM to ab
 `set -u` and asserts the headless wheel, the pre-flight import check and the streaming
 endpoint, so this class is caught locally rather than on a billing instance.
 
+## Stock ceiling-fan footage: three failures and one success
+
+Four third-party clips were measured. The failures are more instructive than the win.
+
+| clip | auto-ROI landed on | reported "vibration" | blade pass | ratio |
+|---|---|---|---|---|
+| pexels 16641601 | blades | 1.18 Hz | 1.18 Hz | **1.00** |
+| pixabay 133872 | blades | 11.22 Hz | 11.26 Hz | **1.00** |
+| pixabay 25007 | blades | 3.39 Hz | 3.25 Hz | **0.96** |
+| **pixabay 39861** | **hub + light fixture** | **2.41 Hz** | 12.18 Hz | **5.06** |
+
+A ratio of 1.00 is the tell. Automatic ROI selection maximises high-frequency motion
+energy, and on a ceiling fan the blades carry orders of magnitude more of it than the
+hub does. The box lands on the blade sweep and the pipeline faithfully measures the
+blades — returning blade-pass rate and calling it vibration. The number looks
+plausible and means nothing.
+
+Constraining the ROI to the hub alone does not rescue those clips: at that framing the
+hub is ~120 px with blades sweeping past it, and 49–54% of frames fail correlation.
+The quality gate refuses all of them, which is the system behaving correctly.
+
+The fourth clip works because the geometry is different: the hub and light fixture
+occupy a region the blades sweep *past* rather than *through*, and a static ceiling is
+in frame for the reference. Ratio 5.06 against 5 counted blades, with 1× at 2.406 Hz
+and blade pass at 12.18 Hz both present in the same displacement spectrum.
+
+**Operational consequence:** framing is not a detail. Aim at a hub, bolt flange or
+casting with the rotating element out of the region, and keep something rigid in
+shot. A ratio near 1.0 between the dominant peak and an independently measured
+blade-pass rate should be treated as evidence the ROI is on the wrong thing.
+
 ## Reproducing
 
 ```bash

@@ -227,7 +227,53 @@ known 7.30 Hz.
 Stabilisation reduced total motion from 22.3 px rms to 2.9 px — and 2.9 px is
 essentially the expected signal alone (4 px amplitude ÷ √2 = 2.83).
 
-### 6.2 Why handheld works — the measured reason
+### 6.2 A real machine: ceiling fan, handheld
+
+The clip in §6.1 is a controlled target. This one is a working ceiling fan, filmed
+handheld, from third-party stock footage (Pixabay, id 39861; their Content License
+permits reuse). It matters because it supplies something a controlled target cannot:
+**two physically independent signals in one recording.**
+
+The system measured the hub, with the ceiling tiles as the rigid reference:
+
+| | |
+|---|---|
+| 1× rotation | **2.406 Hz = 144 RPM**, amplitude 1.141 px, SNR 78.5 |
+| Camera motion → after cancellation | 7.69 px → 1.45 px rms |
+| Frames rejected | 0.2% · quality gate: **trustworthy** |
+
+The cross-check needs no external ground truth. Structural vibration from imbalance
+occurs at 1× rotation; the blades occluding a point occur at *N ×* rotation. Both
+appear in the same displacement spectrum:
+
+| | |
+|---|---|
+| Blade pass, measured | 12.18 Hz |
+| Blade count, counted from frame | **5** |
+| Implied rotation, 12.18 ÷ 5 | 2.436 Hz |
+| Measured 1× | 2.406 Hz |
+| **Agreement** | **1.2%** |
+
+Two independent physical mechanisms — sub-pixel structural displacement, and periodic
+occlusion by the blades — agree to 1.2% on the same footage. That is a stronger check
+than a single number against a nameplate, because a systematic error in the
+displacement pipeline would not reproduce the blade-pass rate.
+
+**What this does not establish.** The absolute RPM is unverified: nobody measured that
+fan with a tachometer. The cross-check confirms *internal consistency*, not calibration
+against an external instrument. And this is someone else's footage, so framing and
+exposure were not chosen for the task.
+
+**Three other ceiling-fan clips failed, informatively** (see `docs/THRESHOLDS.md`): on
+each, automatic ROI selection placed the box over the *blades*, where the enormous
+visible blade motion swamps the micron-scale structural signal. Those clips returned a
+"vibration" frequency exactly equal to blade-pass rate — the right number for entirely
+the wrong reason. The clip above works because the hub, the light fixture and a static
+ceiling are all in frame and the blades sweep past rather than through the region.
+
+![real fan](out/fan_validation.png)
+
+### 6.3 Why handheld works — the measured reason
 
 | Band | Share of camera-motion energy |
 |---|---|
@@ -241,7 +287,7 @@ Hand motion and machine vibration occupy different parts of the spectrum, so a s
 reference plus a temporal transform separates them. A tripod is not required by the
 physics.
 
-### 6.3 Synthetic degradations, exact ground truth
+### 6.4 Synthetic degradations, exact ground truth
 
 A three-component fault signature (1× at 3.1 Hz, 2× at 6.2 Hz, 3× at 9.3 Hz) with the
 **real measured hand-motion trace replayed** onto it, degradations stacked:
@@ -257,7 +303,7 @@ A three-component fault signature (1× at 3.1 Hz, 2× at 6.2 Hz, 3× at 9.3 Hz) 
 Frequency accuracy is exact across 1.7–14.2 Hz. Amplitude sensitivity reaches
 **0.01 px** at SNR 23.3.
 
-### 6.4 Two "limitations" that were the bug
+### 6.5 Two "limitations" that were the bug
 
 Both were documented as physical limits before the `phaseCorrelate` fix:
 
@@ -270,7 +316,7 @@ Both were documented as physical limits before the `phaseCorrelate` fix:
 The texture threshold, derived from the corrupted data, was recalibrated from 15.0 to
 **2.0** — it had been rejecting usable surfaces and forcing needless re-aims.
 
-### 6.5 Agent task effectiveness (n = 80)
+### 6.6 Agent task effectiveness (n = 80)
 
 | | Agent |
 |---|---|
@@ -283,7 +329,7 @@ The texture threshold, derived from the corrupted data, was recalibrated from 15
 Per class when answered: looseness 19/19, misalignment 20/21, unbalance 11/14,
 healthy 7/11.
 
-### 6.6 What the loop is worth — a curve, not a ratio
+### 6.7 What the loop is worth — a curve, not a ratio
 
 A single agent-versus-baseline ratio is not a defensible claim. Across three of our own
 changes the single-shot baseline read 21.2%, then 70.0%, then 27.5%, while the agent
