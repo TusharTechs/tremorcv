@@ -46,7 +46,7 @@ FRAME = """<!doctype html><meta charset="utf-8">
     font:500 24px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#5d6b7f}
 </style>
 <div class="shot"><img src="SRC"></div>
-<div class="brand"><img src="../favicon.svg"><span>TREMOR</span></div>
+<div class="brand"><img src="../../webapp/static/favicon.svg"><span>TREMOR</span></div>
 <div class="url">github.com/TusharTechs/tremorcv</div>
 """
 

@@ -22,7 +22,7 @@ Both call the same `agent/tools.py`, so a finding from one transfers to the othe
 
 ```bash
 python -m agent.mcp_server          # stdio transport
-python test_mcp.py                  # exercise the whole loop, no client needed
+python demo_mcp.py                  # exercise the whole loop, no client needed
 ```
 
 To attach it to Claude Code, add `.mcp.json` at the repo root:

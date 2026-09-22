@@ -10,17 +10,41 @@
 <p align="center">
   <img alt="OpenCV" src="https://img.shields.io/badge/OpenCV-5.0.0-14b8a6?style=flat-square">
   <img alt="AWS" src="https://img.shields.io/badge/AWS-Graviton4%20%2B%20COOL-f59e0b?style=flat-square">
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%E2%80%933.14-3776ab?style=flat-square">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.12%2B-3776ab?style=flat-square">
   <img alt="MCP" src="https://img.shields.io/badge/MCP-server-a855f7?style=flat-square">
   <img alt="Competition" src="https://img.shields.io/badge/OpenCV%20AI%20Competition-2026-0f172a?style=flat-square">
 </p>
 
 <p align="center">
-  <a href="REPORT.md"><b>Technical report</b></a> ·
-  <a href="docs/THRESHOLDS.md">Thresholds</a> ·
-  <a href="docs/MCP.md">MCP surface</a> ·
-  <a href="deploy/README.md">Graviton runbook</a>
+  <a href="http://50.19.247.214"><b>▶ Live demo</b></a> &nbsp;·&nbsp;
+  <a href="https://youtu.be/vS2g5MvfPmo"><b>▶ Demo video, 3 min</b></a> &nbsp;·&nbsp;
+  <a href="REPORT.md"><b>Technical report</b></a> &nbsp;·&nbsp;
+  <a href="submission/TESTING.md"><b>How to verify every claim</b></a>
 </p>
+
+---
+
+### For judges, in one place
+
+| | |
+|---|---|
+| **Working endpoint** | **<http://50.19.247.214>** · press *Run agent*, nothing to install |
+| **Video** | **<https://youtu.be/vS2g5MvfPmo>** · 3 min |
+| **Technical report** | [REPORT.md](REPORT.md) · problem, users, architecture, OpenCV 5, AWS, evaluation, limitations, responsible use |
+| **Testing instructions** | [submission/TESTING.md](submission/TESTING.md) · reproduce every number, including on your own footage |
+| **Architecture diagram** | [docs/architecture.svg](docs/architecture.svg) · OpenCV 5, AWS, COOL and agent components |
+| **Agent workflow diagram** | [docs/agent-workflow.svg](docs/agent-workflow.svg) · perception, decision, action |
+| **Evaluation evidence** | [REPORT.md §6](REPORT.md) and [docs/THRESHOLDS.md](docs/THRESHOLDS.md) · including the failures |
+| **Limitations** | [REPORT.md §8](REPORT.md) · stated, not buried |
+| **COOL and Graviton evidence** | [REPORT.md §7](REPORT.md) · raw results with provenance in [`results/`](results/) |
+| **Agent trace** | [`out/agent_trace.json`](out/agent_trace.json) · or watch it stream live on the endpoint |
+| **MCP surface** | [docs/MCP.md](docs/MCP.md) · 8 tools, `python demo_mcp.py` runs the loop with no LLM |
+| **Deployment runbook** | [deploy/README.md](deploy/README.md) |
+| **Thresholds and their basis** | [docs/THRESHOLDS.md](docs/THRESHOLDS.md) · every number measured, not guessed |
+
+**Fastest meaningful check:** open the endpoint, press *Run agent*, and watch the
+trace on the right. The agent is not told the fault, the shaft speed, or whether its
+first clip is usable. Ground truth is printed under the verdict.
 
 ---
 
@@ -67,7 +91,15 @@ and the benchmark confirmed.
   <img src="docs/architecture.svg" alt="TREMOR architecture" width="900">
 </p>
 
-<sub>Source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> · regenerate with <a href="docs/render-architecture.sh"><code>docs/render-architecture.sh</code></a><br><b>Dashed grey = designed but not yet implemented.</b> The OpenCV 5 pipeline, the agent and the decision trace are built and exercised by the test suite; the COOL/Graviton leg is benchmarked (§7.3). S3/Lambda/SQS ingest and DynamoDB/CloudWatch state are the intended production path and are <i>not</i> yet wired into the application — S3 and EC2 were used operationally to run the benchmark, but no application code calls them.</sub>
+<sub>Source: <a href="docs/architecture.mmd"><code>docs/architecture.mmd</code></a> · regenerate with <a href="docs/render-diagrams.sh"><code>docs/render-diagrams.sh</code></a><br><b>Dashed grey = designed but not yet implemented.</b> The OpenCV 5 pipeline, the agent and the decision trace are built and exercised by the test suite; the COOL/Graviton leg is benchmarked (§7.3). S3/Lambda/SQS ingest and DynamoDB/CloudWatch state are the intended production path and are <i>not</i> yet wired into the application — S3 and EC2 were used operationally to run the benchmark, but no application code calls them.</sub>
+
+### The agent workflow
+
+<p align="center">
+  <img src="docs/agent-workflow.svg" alt="TREMOR agent workflow: perception, decision, action" width="980">
+</p>
+
+<sub>Source: <a href="docs/agent-workflow.mmd"><code>docs/agent-workflow.mmd</code></a>. Perception is OpenCV 5 with no learned model. The decision ladder is deterministic and reads only tool output, never a prompt. Every action that is not a verdict issues a <b>new acquisition</b>, which is what makes this a loop closed on the physical world rather than a report generator.</sub>
 
 ## Why handheld works
 
@@ -103,39 +135,78 @@ The Nyquist case is the clearest: looseness is only separable via its 3× harmon
 which sits above Nyquist at 30 fps for any shaft above 5 Hz. Routing those cases to
 240 fps took looseness from 13 correct / 13 escalated to **19 correct / 7 escalated**.
 
-## Quick start
+## Run it locally, on any system
 
-**Python 3.12 or newer.** numpy 2.5.3 publishes no wheel below cp312. Wheels
-exist for Windows, Linux and macOS on both x86_64 and arm64.
+**Python 3.12 or newer is required**: numpy 2.5.3 publishes no wheel below cp312, so
+older versions try to build it from source and usually fail. Check with
+`python3 --version`. Wheels exist for every pin on Windows, Linux and macOS, x86_64
+and arm64.
 
-```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-
-.venv/bin/python run_gate.py                  # frequency accuracy, amplitude floor, shake rejection
-.venv/bin/python eval_agent.py 80             # agent effectiveness + confusion matrix
-.venv/bin/python sensitivity.py 24            # what the loop is worth, as a curve
-.venv/bin/python -m pytest tests/             # phaseCorrelate mutation regression
-.venv/bin/python analyze_video.py <clip.mov>  # measure your own footage
-```
-
-On Windows the interpreter lives at `.venv\Scripts\python.exe`, so use that in
-place of `.venv/bin/python` throughout, or activate the environment first with
-`.venv\Scripts\Activate.ps1`.
-
-`requirements.txt` pins **opencv-python-headless**: nothing here calls cv2's GUI
-functions, and the full wheel links libGL, which a server, a container or WSL
-without desktop libraries does not have.
-
-**Web endpoint** — live at **<http://50.19.247.214>**. No build step, no CDN, so it
-runs locally with uvicorn and nothing else:
+<table>
+<tr><th align="left">macOS and Linux</th><th align="left">Windows, PowerShell</th></tr>
+<tr valign="top"><td>
 
 ```bash
-.venv/bin/uvicorn webapp.server:app --port 8077
+git clone https://github.com/TusharTechs/tremorcv
+cd tremorcv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-*Simulated* streams the agent loop step by step over SSE, so each decision appears as
-it is made with the evidence beside it. *Upload clip* measures real footage and draws
-the automatically-chosen regions on a preview frame.
+</td><td>
+
+```powershell
+git clone https://github.com/TusharTechs/tremorcv
+cd tremorcv
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+</td></tr>
+</table>
+
+On Windows, if PowerShell refuses to run the activate script, either run
+`Set-ExecutionPolicy -Scope Process RemoteSigned` first, or use
+`.venv\Scripts\activate.bat` from `cmd.exe`. Everything after activation is
+identical on all three systems.
+
+### The web endpoint
+
+```bash
+uvicorn webapp.server:app --port 8000
+```
+
+Then open <http://localhost:8000>. No build step and no CDN, so nothing else is
+needed. *Simulated* streams the agent loop over SSE, so each decision appears as it
+is made with its evidence beside it. *Upload clip* measures real footage and draws
+the automatically chosen regions on a preview frame.
+
+The same thing is already running at **<http://50.19.247.214>** if you would rather
+not install anything.
+
+### Everything else
+
+```bash
+python -m pytest -q             # 38 regression tests, about a minute
+python demo_mcp.py              # drive the whole loop over MCP, no LLM or API key
+python run_agent.py             # one machine, one agent run, printed trace
+python eval_agent.py 80         # agent effectiveness + confusion matrix, ~12 min
+python run_gate.py              # frequency accuracy, amplitude floor, shake rejection
+python sensitivity.py 24        # what the loop is worth, as a curve
+python analyze_video.py <clip>  # measure your own footage
+```
+
+One extra check is **Unix only**, because it exercises the deployment scripts under
+`env -i`: `bash tests/test_deploy_scripts.sh`. Run it under WSL on Windows, or skip
+it. Four of our deployment failures were things that work on macOS and break on
+Linux, which is why it exists.
+
+`requirements.txt` pins **opencv-python-headless** deliberately: nothing here calls
+cv2's GUI functions, and the full wheel links libGL, which a server, a container or
+WSL without desktop libraries does not have. Using the full wheel is what broke the
+first deployment.
 
 ## An upstream bug worth knowing about
 
@@ -154,22 +225,41 @@ smooth surfaces from FAIL to PASS. Pinned by
 ## Layout
 
 ```
-tremor/     measurement core + validation generators
-agent/      perception-decision-action loop, tool surface, MCP server
-bench/      COOL/Graviton benchmark harness with falsifiable provenance
-webapp/     FastAPI endpoint + single-page UI
-deploy/     Graviton + COOL deployment, one-shot benchmark runner
-docs/       architecture, thresholds and their empirical basis, MCP design
-tests/      regression tests
+tremor/       measurement core and validation generators
+agent/        perception, decision, action loop · tool surface · MCP server
+bench/        COOL and Graviton benchmark harness with falsifiable provenance
+webapp/       FastAPI endpoint and single page UI
+deploy/       Graviton and COOL deployment, one shot benchmark runner
+docs/         architecture and agent diagrams, thresholds, MCP design
+tests/        38 regression tests
+results/      raw benchmark output, with the provenance block
+video/        the demo video and the scripts that record and assemble it
+submission/   technical report as PDF, and the testing instructions
 ```
 
 ## Status
 
-Measurement core, agent, MCP surface, benchmark harness and web endpoint are built and
-evidenced. **Pending:** the Graviton/COOL benchmark run, web deployment, and validation
-against a real machine rather than a controlled target. Those are marked
-`[PENDING]` in the [technical report](REPORT.md) and contain no invented figures.
+Everything described here is **built and measured**. Nothing in the report is
+projected or estimated, and there are no `[PENDING]` figures left in it.
 
-Every threshold in the system is a measurement, not a guess —
-[`docs/THRESHOLDS.md`](docs/THRESHOLDS.md) records what was run and what it showed,
-including the results that went against us.
+| | |
+|---|---|
+| Measurement core, agent, MCP surface | built, 38 tests |
+| COOL and Graviton benchmark | run on c8g.2xlarge, results in [`results/`](results/) with a provenance gate |
+| Web endpoint | deployed and reachable at <http://50.19.247.214> |
+| Validation against a real machine | ceiling fan, handheld, 2.406 Hz and 144 RPM, cross checked to 1.2% |
+
+The parts of the architecture diagram drawn in **dashed grey** are designed but not
+implemented: S3, Lambda and SQS ingest, and DynamoDB and CloudWatch state. S3 and EC2
+were used operationally to run the benchmark, but no application code calls them, and
+the diagram says so rather than implying a system larger than the one that exists.
+
+Every threshold is a measurement, not a guess. [`docs/THRESHOLDS.md`](docs/THRESHOLDS.md)
+records what was run and what it showed, **including the results that went against us**:
+an ablation that turned out to measure scenario difficulty rather than the value of the
+loop, a benchmark whose first run measured nothing because `PYTHONPATH` leaked, and two
+bugs the project found in itself.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

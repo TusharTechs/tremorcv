@@ -1,0 +1,64 @@
+flowchart LR
+  classDef percept fill:#e6f7f4,stroke:#14b8a6,stroke-width:2px,color:#0d2b27
+  classDef decide  fill:#f7ecfd,stroke:#a855f7,stroke-width:2px,color:#320f47
+  classDef act     fill:#fff2e0,stroke:#e08c1a,stroke-width:2px,color:#452e07
+  classDef done    fill:#eaf5ff,stroke:#2563eb,stroke-width:2px,color:#0f2657
+  classDef note    fill:#ffffff,stroke:#94a3b8,color:#1e293b,stroke-dasharray:4 3
+
+  subgraph P["1 · PERCEPTION &nbsp;&nbsp; OpenCV 5, no learned model"]
+    direction TB
+    A1["<b>assess_surface</b><br/>is this surface phase correlatable"]
+    A2["<b>measure</b><br/>auto_rois · phaseCorrelate<br/>clean_trace · cancel camera motion · cv2.dft"]
+    A3["<b>assess_quality</b><br/>SNR · texture · rejected frames<br/>aliasing · Nyquist headroom"]
+    A4["<b>estimate_shaft · diagnose</b><br/>harmonic comb, then 1x/2x/3x<br/>gated on the noise floor"]
+    A1 --> A2 --> A3 --> A4
+  end
+
+  subgraph D["2 · DECISION &nbsp;&nbsp; a ladder over tool output, not a prompt"]
+    direction TB
+    D1{"low<br/>texture"}
+    D2{"possible<br/>aliasing"}
+    D3{"low<br/>SNR"}
+    D4{"2x above<br/>Nyquist"}
+    D5{"harmonic unobservable<br/>· confidence low"}
+    D6{"confidence<br/>at least 0.55"}
+    D1 -->|no| D2 -->|no| D3 -->|no| D4 -->|no| D5 -->|no| D6
+  end
+
+  subgraph C["3 · ACTION &nbsp;&nbsp; the loop closes on the world, not on text"]
+    direction TB
+    C1["<b>RE AIM</b><br/>ask for a different surface"]
+    C2["<b>BRACE</b><br/>ask the operator to steady the shot"]
+    C3["<b>RAISE FRAME RATE</b><br/>ask for 240 fps"]
+    C4["<b>REPORT</b><br/>fault · confidence · evidence"]
+    C5["<b>ESCALATE</b><br/>hand to a human rather than<br/>name a fault it cannot support"]
+  end
+
+  A4 --> D1
+
+  D1 -->|yes| C1
+  D2 -->|yes| C3
+  D3 -->|"yes · not braced"| C2
+  D3 -->|"yes · aim untried"| C1
+  D3 -->|"yes · nothing left"| C5
+  D4 -->|yes| C3
+  D5 -->|yes| C3
+  D6 -->|yes| C4
+  D6 -->|no| C5
+
+  C1 -. "NEW ACQUISITION" .-> A1
+  C2 -. "NEW ACQUISITION" .-> A1
+  C3 -. "NEW ACQUISITION" .-> A1
+
+  OBS["<b>Observability and human control</b><br/>Budget of 4 acquisitions, then escalate.<br/>Every step emits decision, rationale and<br/>next_acquisition to agent_trace.json<br/>and the live SSE stream."]
+  C4 --> OBS
+  C5 --> OBS
+
+  class A1,A2,A3,A4 percept
+  class D1,D2,D3,D4,D5,D6 decide
+  class C1,C2,C3 act
+  class C4,C5 done
+  class OBS note
+  style P fill:#f4fbfa,stroke:#9fd8d0
+  style D fill:#fbf6fe,stroke:#d4b0f0
+  style C fill:#fffaf2,stroke:#eccb9a

@@ -150,9 +150,9 @@ bundle, so the numbers in section 7.3 can be checked without spending anything.
 python -m agent.mcp_server
 ```
 
-Eight tools: `assess_surface`, `measure`, `assess_quality`, `estimate_shaft`,
-`diagnose`, `compare_baseline`, `acquire`, `run_agent`. Every guard rail lives in
-a tool rather than in a prompt, which is why they can be tested independently.
+Eight tools: `start_session`, `capture_clip`, `assess_surface`, `measure`, `assess_quality`,
+`diagnose`, `compare_baseline`, `reveal_ground_truth`. Every guard rail lives in a tool rather than in a
+prompt, which is why they can be tested independently.
 See `docs/MCP.md`.
 
 ## What it cannot do

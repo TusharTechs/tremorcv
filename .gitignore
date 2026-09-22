@@ -12,3 +12,6 @@ video/raw/*.webm
 video/work/
 video/vo/
 submission/*.zip
+video/youtube/gallery/_frames/
+.claude/
+video/raw/
