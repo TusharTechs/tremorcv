@@ -58,6 +58,21 @@ def pick(page, host, value):
     page.wait_for_timeout(420)
 
 
+# A magenta bar flashed across the top of the page at the "start" mark.
+# Playwright's video does not begin at page creation, and the lead-in varies by
+# a few seconds between file:// and http pages, so wall-clock marks cannot be
+# mapped into the video timeline by subtraction. build_video.py finds this bar
+# and anchors every other mark to the frame it lands on.
+SYNC = """
+(() => {
+  const b = document.createElement('div');
+  b.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:12px;'
+    + 'background:#ff00ff;z-index:2147483647;pointer-events:none';
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 300);
+})();
+"""
+
 MARKS = {}
 
 
@@ -76,7 +91,9 @@ def scene(ctx, name, url, body, out, zoom=None):
     page.wait_for_timeout(900)
     marks = []
     page.__mark = lambda tag: marks.append({"tag": tag, "t": round(time.time() - t0, 2)})
+    page.evaluate(SYNC)
     page.__mark("start")
+    page.wait_for_timeout(700)
     try:
         body(page)
     finally:
@@ -166,7 +183,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://50.19.247.214")
     ap.add_argument("--clip", default=str(pathlib.Path.home()
-                    / "Desktop/IMG_3419.MOV"))
+                    / "Downloads/39861-424022822_medium.mp4"))
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--only", default="", help="pain|real|agent|how|close")
     a = ap.parse_args()

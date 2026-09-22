@@ -318,16 +318,32 @@ The texture threshold, derived from the corrupted data, was recalibrated from 15
 
 ### 6.6 Agent task effectiveness (n = 80)
 
-| | Agent |
-|---|---|
-| Fault correct, all scenarios | **71.2%** |
-| Fault correct when it committed | **87.7%** |
-| Escalated rather than guessed | 18.8% |
-| Median shaft-frequency error | **0.000 Hz** |
-| Mean acquisitions | 1.86 |
+| | Agent | before the comb fix |
+|---|---|---|
+| Fault correct, all scenarios | **83.8%** | 71.2% |
+| Fault correct when it committed | **89.3%** | 87.7% |
+| Escalated rather than guessed | **6.2%** | 18.8% |
+| Median shaft-frequency error | **0.000 Hz** | 0.000 Hz |
+| Mean acquisitions | 1.86 | 1.86 |
 
-Per class when answered: looseness 19/19, misalignment 20/21, unbalance 11/14,
-healthy 7/11.
+Per class when answered: looseness 25/25, misalignment 20/21, unbalance 11/14,
+healthy 11/15.
+
+**The comb fix.** The second column is this same harness before §4.7's two harmonic-comb
+guards were added. Both were found by a real ceiling fan, not by the simulator: the
+clip measured correctly at 2.406 Hz but was *reported* as 0.73 Hz with an indeterminate
+verdict. `amp_at`'s tolerance is absolute, `max(3·bin, 0.25) Hz`, which at a low
+candidate fundamental is a large fraction of the harmonic spacing, so adjacent comb
+slots blur into one another: the candidate 0.729 Hz put its 3× slot within 0.219 Hz of
+the genuine 2.406 Hz peak and scored that peak as its own evidence. Capping each slot at
+a quarter of the spacing fixes that, and changes nothing above f₀ = 1 Hz.
+
+That alone was insufficient, because 0.802 × 3 lands on 2.406 exactly. So the comb must
+also have a plausible *shape*: unbalance and looseness put most energy at 1×,
+misalignment at 2×, and no standard signature is dominated by 3× with 1× and 2× both
+weak. The two guards together moved escalation from 18.8% to 6.2% without costing
+precision, which is the direction that matters: the loop was declining to answer
+questions it could in fact answer.
 
 ### 6.7 What the loop is worth — a curve, not a ratio
 

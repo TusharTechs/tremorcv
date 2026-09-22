@@ -18,18 +18,18 @@ RAW, WORK = ROOT / "raw", ROOT / "work"
 OUT = ROOT / "TREMOR_demo.mp4"
 MONO = "/System/Library/Fonts/Supplemental/Andale Mono.ttf"
 
-RAMP = {"02_real.webm": 3.0}          # segment -> how much to compress dead compute
+RAMP = {"02_real.webm": 2.0}          # segment -> how much to compress dead compute
 
 # (start_s, duration_s, LABEL, value, where) -- times are in the FINAL segment
 # timeline, i.e. after the speed ramp has been applied.
 CALLOUTS = {
     "02_real.webm": [
-        (12.8, 6.2, "GROUND TRUTH 7.30 HZ", "measured 7.28 Hz  ·  0.3% error", "bottom"),
-        (19.4, 4.4, "CAMERA MOTION", "20 px of hand shake, cancelled", "bottom"),
+        (9.4, 5.6, "SHAFT RATE", "2.406 Hz  ·  144 RPM", "bottom"),
+        (15.4, 4.2, "REAL MACHINE", "ceiling fan, handheld, no contact sensor", "bottom"),
     ],
     "03_agent.webm": [
-        (13.6, 5.2, "STEP 1", "SNR too low, so it asked for a better shot", "bottom"),
-        (19.2, 4.2, "STEP 2", "1x / 2x / 3x ratios  ->  mechanical looseness", "bottom"),
+        (14.3, 5.2, "STEP 1", "SNR too low, so it asked for a better shot", "bottom"),
+        (19.9, 4.2, "STEP 2", "1x / 2x / 3x ratios  ->  mechanical looseness", "bottom"),
     ],
 }
 
@@ -44,6 +44,24 @@ def dur(path):
     return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries",
         "format=duration", "-of", "default=nw=1:nk=1", str(path)],
         capture_output=True, text=True).stdout)
+
+
+def sync_offset(src):
+    """Video time of the magenta bar the recorder flashes at its "start" mark.
+
+    Playwright's lead-in before the first recorded frame is not constant, so the
+    marks file cannot be mapped into the video by subtracting its own start. The
+    bar is the one point where both timelines are known to coincide.
+    """
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(src),
+         "-vf", "fps=30,crop=400:8:0:0,scale=1:1,format=rgb24",
+         "-f", "rawvideo", "-"], capture_output=True).stdout
+    for i in range(0, len(raw) - 2, 3):
+        r, g, b = raw[i], raw[i + 1], raw[i + 2]
+        if r > 170 and b > 170 and g < 90:
+            return i / 3 / 30.0
+    sys.exit(f"no sync bar found in {src.name} -- re-record with the current script")
 
 
 def chip(path, label, value=None, pad=26):
@@ -73,31 +91,37 @@ def main():
         sys.exit("run video/record_demo.py first")
     m = json.loads((RAW / "marks.json").read_text())
     WORK.mkdir(exist_ok=True)
-    ramp_chip = chip(WORK / "chip_ramp.png", "real compute  ·  25 s shown at 3x")
+    ramp_chip = chip(WORK / "chip_ramp.png", "real compute  ·  8 s shown at 2x")
 
     parts = []
     for seg in sorted(m):
         src = RAW / seg
         dst = WORK / seg.replace(".webm", ".mp4")
         t = {x["tag"]: x["t"] for x in m[seg]}
-        z = t["start"]
+        z = t["start"] - sync_offset(src)      # marks -> video time
         t = {k: round(v - z, 2) for k, v in t.items()}
         end = t["end"]
         base = "fps=30,scale=1920:1080:flags=lanczos,setsar=1"
 
+        t0 = t["start"]                       # drop the browser lead-in
+        span = round(end - t0, 2)
         inputs = ["-i", str(src)]
         if seg in RAMP and "crunch_start" in t:
-            a, b, k = t["crunch_start"], t["crunch_end"], RAMP[seg]
+            a = round(t["crunch_start"] - t0, 2)
+            b = round(t["crunch_end"] - t0, 2)
+            k = RAMP[seg]
             inputs += ["-i", str(ramp_chip)]
-            fc = (f"[0:v]{base}[v];[v]split=3[p1][p2][p3];"
+            fc = (f"[0:v]trim={t0}:{end},setpts=PTS-STARTPTS,{base}[v];"
+                  f"[v]split=3[p1][p2][p3];"
                   f"[p1]trim=0:{a},setpts=PTS-STARTPTS[a];"
                   f"[p2]trim={a}:{b},setpts=(PTS-STARTPTS)/{k}[b0];"
                   f"[b0][1:v]overlay=W-w-46:H-h-46[b];"
-                  f"[p3]trim={b}:{end},setpts=PTS-STARTPTS[c];"
+                  f"[p3]trim={b}:{span},setpts=PTS-STARTPTS[c];"
                   f"[a][b][c]concat=n=3:v=1:a=0[cur]")
             nxt = 2
+            print(f"  {seg:16s} sync={t0:5.2f}s  results at {round(a + (b - a) / k, 2)}s")
         else:
-            fc = f"[0:v]trim=0:{end},setpts=PTS-STARTPTS,{base}[cur]"
+            fc = f"[0:v]trim={t0}:{end},setpts=PTS-STARTPTS,{base}[cur]"
             nxt = 1
 
         cur = "[cur]"

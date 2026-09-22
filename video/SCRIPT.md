@@ -1,16 +1,37 @@
 # TREMOR demo video
 
-`TREMOR_demo.mp4` is the assembled cut: **3:09**, 1920x1080, 30 fps, silent.
-Everything in it was recorded against the live endpoint at http://50.19.247.214.
+**`TREMOR_demo_final.mp4`** is the one to submit: **3:09**, 1920x1080, 30 fps,
+narration and a background bed, normalised to -16.7 LUFS. Everything in it was
+recorded against the live endpoint at http://50.19.247.214.
 
-Regenerate it with:
+Three stages, each leaving a usable file:
 
 ```bash
 pip install playwright && playwright install chromium
-python video/record_demo.py && python video/build_video.py
+python video/record_demo.py     # -> video/raw/*.webm + marks.json
+python video/build_video.py     # -> TREMOR_demo.mp4        (silent)
+python video/voiceover.py       # -> TREMOR_demo_vo.mp4     (+ narration)
+python video/music.py           # -> TREMOR_demo_final.mp4  (+ bed)
 ```
 
-`build_video.py` needs `ffmpeg` and `pillow`.
+Needs `ffmpeg`, `pillow` and `numpy`.
+
+## Audio
+
+The narration is the macOS speech synthesiser, as a stand-in. **Record the same
+lines in your own voice and it will sound markedly better**: put the wavs in
+`video/vo/` as `00.wav`, `01.wav` and so on, matching the order in
+`narration.py`, and re-run `voiceover.py` and `music.py`.
+
+The bed is synthesised in `music.py`, not sourced, so there is no licence
+question on a submission. It is an open Dsus2 voicing from D3 to A5, pure sines,
+no percussion and no melody, side-chained against the narration so it opens up
+in the gaps and stays out of the way under speech. Speech sits at -18.6 dB
+against a bed at -33.1 dB. Change `BED_DB` to taste, or skip `music.py`
+entirely and ship `TREMOR_demo_vo.mp4`.
+
+**No sound effects.** With narration this dense they read as clutter, and a
+whoosh on every scene change makes a technical demo look like an advert.
 
 ## What you still have to add
 
