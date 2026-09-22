@@ -1,0 +1,66 @@
+<!doctype html><meta charset="utf-8">
+<style>
+:root{--bg:#0c0f14;--panel:#10151c;--ink:#e8eef7;--muted:#9fb0c4;--accent:#4dd4c4;
+  --line:#22303f;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0}
+html,body{width:1920px;height:1280px;overflow:hidden;background:var(--bg)}
+.t{position:absolute;inset:0;display:none}
+.t.on{display:block}
+
+/* A: image above, panel below */
+.a .top{position:absolute;left:0;right:0;top:0;height:690px;overflow:hidden}
+.a .top .img{position:absolute;inset:0;background:url(fan_roi.png) center/cover;
+  filter:grayscale(.12) contrast(1.1) brightness(1.2)}
+.a .top .fade{position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(8,11,15,.25) 0%,rgba(8,11,15,0) 35%,
+  rgba(8,11,15,.55) 78%,var(--bg) 100%)}
+.a .bot{position:absolute;left:0;right:0;bottom:0;height:610px;
+  padding:0 96px 78px;display:flex;flex-direction:column;justify-content:flex-end}
+.brand{display:flex;align-items:center;gap:22px;margin-bottom:38px}
+.brand img{width:76px;height:76px}
+.brand .wm{font:700 50px/1 var(--mono);letter-spacing:.17em;color:var(--accent)}
+h1{font:800 132px/.98 system-ui,-apple-system,sans-serif;letter-spacing:-.035em;
+  color:var(--ink)}
+h1 .ac{color:var(--accent)}
+.chip{align-self:flex-start;margin-top:42px;padding:22px 34px;
+  border:4px solid var(--accent);border-radius:18px;background:rgba(12,18,24,.9);
+  font:700 40px/1 var(--mono);color:var(--accent)}
+.tag{margin-top:34px;font:500 38px/1.35 system-ui,-apple-system,sans-serif;
+  color:var(--muted)}
+
+/* B: full bleed */
+.b .img{position:absolute;inset:0;background:url(fan_roi.png) center/cover;
+  filter:grayscale(.12) contrast(1.1) brightness(1.12)}
+.b .fade{position:absolute;inset:0;background:linear-gradient(180deg,
+  rgba(8,11,15,.55) 0%,rgba(8,11,15,.28) 30%,rgba(8,11,15,.88) 66%,rgba(8,11,15,.98) 100%)}
+.b .wrap{position:absolute;inset:0;padding:86px 96px;display:flex;
+  flex-direction:column;justify-content:space-between}
+.b .kick{font:700 36px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:30px}
+.b .big{font:800 210px/.88 var(--mono);letter-spacing:-.05em;color:var(--accent)}
+.b .sub{margin-top:34px;font:600 52px/1.2 system-ui,-apple-system,sans-serif;
+  color:var(--ink);letter-spacing:-.01em}
+</style>
+
+<section class="t a on">
+  <div class="top"><div class="img"></div><div class="fade"></div></div>
+  <div class="bot">
+    <div class="brand"><img src="../favicon.svg"><span class="wm">TREMOR</span></div>
+    <h1>NO SENSOR.<br><span class="ac">JUST VIDEO.</span></h1>
+    <div class="chip">real ceiling fan &middot; 2.406 Hz &middot; 144 RPM</div>
+    <div class="tag">Machine vibration diagnosis from ordinary handheld video.<br>
+      OpenCV 5 &middot; an agent that decides what to film next &middot; AWS Graviton</div>
+  </div>
+</section>
+
+<section class="t b">
+  <div class="img"></div><div class="fade"></div>
+  <div class="wrap">
+    <div class="brand"><img src="../favicon.svg"><span class="wm">TREMOR</span></div>
+    <div>
+      <div class="kick">Diagnosed from a handheld phone clip</div>
+      <div class="big">144 RPM</div>
+      <div class="sub">no contact sensor, no tripod, 14 seconds of video</div>
+    </div>
+  </div>
+</section>
