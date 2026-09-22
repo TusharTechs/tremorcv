@@ -41,6 +41,7 @@ class Measurement:
     # from dict() so large arrays never cross the MCP boundary.
     _freqs: object = None
     _amps: object = None
+    _trace: object = None      # stabilized displacement vs time, for plotting
 
     def dict(self):
         d = {k: v for k, v in asdict(self).items() if not k.startswith("_")}
@@ -107,7 +108,7 @@ def measure(frames, fps, target_roi, static_roi, n_peaks=4, fmin=0.5):
                        bin_hz=float(f[1]), stabilized=stabilized, cam_rms_px=cam_rms,
                        signal_rms_px=float(np.std(sig)), nyquist_hz=fps / 2.0,
                        reject_frac=reject_frac, noise_floor_px=floor_global,
-                       _freqs=f, _amps=A)
+                       _freqs=f, _amps=A, _trace=sig)
 
 
 def assess_quality(meas: Measurement, surface: dict):

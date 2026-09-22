@@ -13,12 +13,31 @@ analyze_video.py      measure a real video file
 run_bench.py          benchmark one environment -> results/<label>.json
 compare.py            merge results -> report tables
 agent/      perception-decision-action loop + MCP server
+webapp/     FastAPI endpoint + single-page UI (no build step, no CDN)
 run_agent.py          single agent run with full decision trace
 eval_agent.py         task effectiveness vs a single-shot ablation
 test_mcp.py           exercise the MCP tool surface, no client needed
 docs/THRESHOLDS.md    empirical basis for every threshold
 docs/MCP.md           MCP server and the two-orchestrator design
 ```
+
+## Web endpoint
+
+```bash
+.venv/bin/uvicorn webapp.server:app --port 8077     # then open http://localhost:8077
+```
+
+Two modes. **Simulated** streams the agent loop step by step over SSE, so each
+decision appears as it is made and the visual evidence that drove it is on screen
+next to it. **Upload clip** measures real footage: the vibrating region and a rigid
+reference are located automatically, and the chosen regions are drawn on a preview
+frame so the operator can see what was measured.
+
+Auto-ROI is not naive motion energy. With a handheld camera everything moves, and
+raw energy picked a laptop keyboard as the "machine" on a real test clip. Hand motion
+is almost entirely below 1 Hz, so each pixel is high-passed in time first; what
+remains is vibration rather than sway. On the real iPhone clip that took SNR from
+4.1 (half-split frame) to 86.9, with the quality gate passing.
 
 ## Validated so far
 

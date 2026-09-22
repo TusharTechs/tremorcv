@@ -118,3 +118,91 @@ def analyze(frames, fps, target_roi, static_roi=None, fmin=0.5):
         trust=bool(snr >= 6.0 and shake_ratio < 3.0),
         freqs=f, amps=A, trace=sig,
     )
+
+
+def auto_rois(frames, fps, box_frac=0.30, n_probe=150, min_texture=6.0,
+              hp_cut_hz=2.5):
+    """Find what is VIBRATING, and something rigid to reference it against.
+
+    Splitting a frame in half is a bad default: on real footage the machine may
+    occupy a fraction of the shot, and averaging it with static background dilutes
+    the signal (measured on one clip: SNR 196 with hand-placed ROIs, 4.1 with a
+    half-split).
+
+    But raw temporal energy is also wrong, and fails in an instructive way. With a
+    handheld camera everything moves, so the highest-energy region is wherever
+    contrast x camera-shake is largest -- on a real test clip that selected the
+    laptop keyboard as the "machine" and the actually-oscillating target as the
+    "static" reference.
+
+    Hand motion is overwhelmingly slow: measured on real iPhone footage, 78.6% of
+    its energy sits below 1 Hz and only 0.7% lands in the 5-15 Hz band where
+    machine vibration lives. So temporally high-pass each pixel first -- subtract a
+    moving average over ~1/hp_cut_hz seconds -- and the remaining energy is
+    vibration rather than sway.
+
+    Returns (target_roi, static_roi, diagnostics).
+    """
+    n, H, W = len(frames), frames[0].shape[0], frames[0].shape[1]
+    scale = min(1.0, 320.0 / max(W, 1))
+    # contiguous window: the high-pass needs real temporal adjacency, not a
+    # sparse sample across the clip
+    take = min(n_probe, n)
+    start = max(0, (n - take) // 2)
+    small = np.stack([cv2.resize(np.asarray(frames[i], np.float32), (0, 0),
+                                 fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                      for i in range(start, start + take)])
+    h, w = small.shape[1:]
+
+    k = max(3, int(round(fps / max(hp_cut_hz, 0.1))) | 1)      # odd kernel
+    if k < take:
+        pad = k // 2
+        padded = np.pad(small, ((pad, pad), (0, 0), (0, 0)), mode="edge")
+        kern = np.ones(k, np.float32) / k
+        baseline = np.apply_along_axis(
+            lambda col: np.convolve(col, kern, mode="valid"), 0, padded)
+        hp = small - baseline[:take]
+    else:
+        hp = small - small.mean(axis=0, keepdims=True)
+
+    motion = cv2.GaussianBlur(hp.std(axis=0), (0, 0), 2.0)
+    mean_f = small.mean(axis=0)
+    mu = cv2.blur(mean_f, (9, 9))
+    texture = np.sqrt(np.maximum(cv2.blur(mean_f * mean_f, (9, 9)) - mu * mu, 0))
+
+    bw, bh = max(int(w * box_frac), 16), max(int(h * box_frac), 16)
+    m_box = cv2.boxFilter(motion, -1, (bw, bh), normalize=True)
+    t_box = cv2.boxFilter(texture, -1, (bw, bh), normalize=True)
+    usable = t_box >= min_texture
+    if not usable.any():
+        usable = t_box >= np.percentile(t_box, 75)
+
+    half_w, half_h = bw // 2, bh // 2
+    valid = np.zeros_like(usable)
+    valid[half_h:h - half_h, half_w:w - half_w] = True
+    ok = usable & valid
+    if not ok.any():
+        ok = valid
+
+    tgt_c = np.unravel_index(np.argmax(np.where(ok, m_box, -np.inf)), m_box.shape)
+    away = np.ones_like(ok)
+    y0, y1 = max(0, tgt_c[0] - bh), min(h, tgt_c[0] + bh)
+    x0, x1 = max(0, tgt_c[1] - bw), min(w, tgt_c[1] + bw)
+    away[y0:y1, x0:x1] = False
+    ref_ok = ok & away
+    if not ref_ok.any():
+        ref_ok = valid & away
+    ref_c = np.unravel_index(np.argmin(np.where(ref_ok, m_box, np.inf)), m_box.shape)
+
+    def to_full(cy, cx):
+        x = int((cx - half_w) / scale); y = int((cy - half_h) / scale)
+        ww = int(bw / scale); hh = int(bh / scale)
+        x = max(0, min(x, W - ww)); y = max(0, min(y, H - hh))
+        return (x, y, ww, hh)
+
+    diag = {"vibration_target": float(m_box[tgt_c]),
+            "vibration_reference": float(m_box[ref_c]),
+            "texture_target": float(t_box[tgt_c]),
+            "texture_reference": float(t_box[ref_c]),
+            "highpass_cut_hz": hp_cut_hz, "probe_frames": int(take)}
+    return to_full(*tgt_c), to_full(*ref_c), diag
